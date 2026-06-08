@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "com.smallrong.autoclicker"
+    namespace = "com.yihuan.autofish"
     compileSdk = 34
 
     buildFeatures {
@@ -11,11 +11,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.smallrong.autoclicker"
+        applicationId = "com.yihuan.autofish"
         minSdk = 28
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

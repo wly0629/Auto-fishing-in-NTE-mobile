@@ -1,4 +1,4 @@
-package com.smallrong.autoclicker
+package com.yihuan.autofish
 
 import android.graphics.Rect
 

@@ -1,4 +1,4 @@
-package com.smallrong.autoclicker
+package com.yihuan.autofish
 
 import android.content.Context
 import android.content.res.Configuration
@@ -52,11 +52,11 @@ class ClickScript(
 
 
         /** cursor 模板匹配阈值 — cursor 图像干净，可设较高值 */
-        private const val THRESHOLD_CURSOR = 0.93
+        private const val THRESHOLD_CURSOR = 0.95
 
 
         /** target 模板匹配阈值 — target 图像干净，极高置信度 */
-        private const val THRESHOLD_TARGET = 0.97
+        private const val THRESHOLD_TARGET = 0.98
 
 
         /** left/right 按钮模板匹配阈值 */

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">AutoFish</string>
+    <string name="app_name">异环手游自动钓鱼</string>
     <string name="accessibility_service_description">智能点击助手需要无障碍权限来执行自动点击操作</string>
     <string name="service_notification_channel">屏幕录制</string>
     <string name="service_notification_text">正在录制屏幕…</string>

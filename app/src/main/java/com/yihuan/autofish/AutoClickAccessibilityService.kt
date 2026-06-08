@@ -1,4 +1,4 @@
-package com.smallrong.autoclicker
+package com.yihuan.autofish
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription

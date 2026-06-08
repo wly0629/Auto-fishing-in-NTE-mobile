@@ -1,4 +1,4 @@
-package com.smallrong.autoclicker
+package com.yihuan.autofish
 
 import android.Manifest
 import android.app.AppOpsManager
@@ -7,7 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Log
 import android.view.View
-import com.smallrong.autoclicker.BuildConfig
+import com.yihuan.autofish.BuildConfig
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler

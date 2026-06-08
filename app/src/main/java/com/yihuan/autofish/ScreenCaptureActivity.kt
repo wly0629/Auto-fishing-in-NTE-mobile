@@ -1,4 +1,4 @@
-package com.smallrong.autoclicker
+package com.yihuan.autofish
 
 import androidx.activity.ComponentActivity
 import android.content.Intent

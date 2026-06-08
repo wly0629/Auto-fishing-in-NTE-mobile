@@ -1,4 +1,4 @@
-package com.smallrong.autoclicker
+package com.yihuan.autofish
 
 /**
  * 点击事件监控 — 供 ClickTestActivity 读取 AccessbilityService 的点击状态
