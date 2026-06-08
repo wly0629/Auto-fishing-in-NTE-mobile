@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- 悬浮窗权限 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- 前台服务权限 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- 读取媒体文件（Android 13+ 使用 READ_MEDIA_IMAGES，旧版本使用 READ_EXTERNAL_STORAGE） -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AutoClicker">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AutoClicker">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".TestActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AutoClicker"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|screenLayout" />
+
+        <activity
+            android:name=".ClickTestActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AutoClicker"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|screenLayout" />
+
+        <!-- 透明的录屏权限请求 Activity（悬浮窗点击运行时启动，避免跳转主页面） -->
+        <!-- taskAffinity="" 让此 Activity 运行在独立 Task 中，不影响 MainActivity 的 Task -->
+        <!-- launchMode="singleTask" 确保不会创建多个实例 -->
+        <activity
+            android:name=".ScreenCaptureActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Transparent"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|screenLayout"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:launchMode="singleTask" />
+
+        <!-- 屏幕录制前台服务（MediaProjection 需要） -->
+        <service
+            android:name=".ScreenCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
+        <!-- 无障碍自动点击服务 -->
+        <service
+            android:name=".AutoClickAccessibilityService"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- 悬浮窗控制服务 -->
+        <service
+            android:name=".FloatingOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="floating_overlay_control_panel" />
+        </service>
+
+    </application>
+
+</manifest>

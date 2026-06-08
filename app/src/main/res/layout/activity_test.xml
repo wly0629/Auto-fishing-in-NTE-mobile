@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 全屏测试页面：无顶栏、无底栏，ViewPager 占满整个屏幕 -->
+<androidx.viewpager2.widget.ViewPager2 xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/testViewPager"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="#000000"
+    android:keepScreenOn="true" />
