@@ -20,6 +20,14 @@ import androidx.appcompat.widget.SwitchCompat
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.azhon.appupdate.manager.DownloadManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import java.io.File
 import java.io.FileOutputStream
 import java.lang.reflect.Method
@@ -126,8 +134,8 @@ class MainActivity : AppCompatActivity() {
 
         setupCards()
 
-        // 显示版本号
-        findViewById<android.widget.TextView>(R.id.tvVersion).text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+        // 显示版本号（只显示版本名）
+        findViewById<android.widget.TextView>(R.id.tvVersion).text = "v${BuildConfig.VERSION_NAME}"
 
         // 设置悬浮窗录屏权限回调 — 点击运行按钮时通过此回调弹出录屏授权界面
         FloatingOverlayService.onRequestScreenCapture = {
@@ -137,6 +145,8 @@ class MainActivity : AppCompatActivity() {
         }
 
 
+        // 延迟检查更新（不阻塞界面加载）
+        myHandler.postDelayed({ checkUpdate() }, 2000)
     }
 
     private fun setupCards() {
@@ -394,6 +404,63 @@ class MainActivity : AppCompatActivity() {
             suppressSwitchCallback = false
         }
         tvAdbHint.visibility = View.GONE
+    }
+
+    /**
+     * 检查远程更新（启动后延迟2秒调用）
+     * 从远程 update.json 获取版本信息，使用 AppUpdate 库展示更新弹窗
+     */
+    private fun checkUpdate() {
+        val updateUrl = "https://raw.githubusercontent.com/wly0629/my-app/main/update.json"
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val jsonStr = fetchUrl(updateUrl)
+                val obj = JSONObject(jsonStr)
+                val remoteVersionCode = obj.optInt("versionCode", 0)
+                val remoteVersionName = obj.optString("versionName", "")
+                val apkUrl = obj.optString("apkUrl", "")
+                val updateLog = obj.optString("updateLog", "暂无更新说明")
+                val apkSize = obj.optString("size", "0MB")
+
+                // 只在远程版本更新时才弹窗
+                if (remoteVersionCode > BuildConfig.VERSION_CODE && apkUrl.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        try {
+                            val manager = DownloadManager.Builder(this@MainActivity).run {
+                                apkUrl(apkUrl)
+                                apkName("autofish.apk")
+                                smallIcon(R.mipmap.ic_launcher)
+                                apkVersionCode(remoteVersionCode)
+                                apkVersionName(remoteVersionName)
+                                apkSize(apkSize)
+                                apkDescription(updateLog)
+                                showNotification(true)
+                                build()
+                            }
+                            manager.download()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "启动更新组件失败", e)
+                        }
+                    }
+                } else {
+                    Log.d(TAG, "当前已是最新版本 (${BuildConfig.VERSION_NAME})")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "检查更新失败", e)
+            }
+        }
+    }
+
+    /**
+     * 简易 HTTP GET 请求，获取 URL 返回的文本内容
+     */
+    private fun fetchUrl(urlStr: String): String {
+        val url = URL(urlStr)
+        val conn = url.openConnection() as HttpURLConnection
+        conn.connectTimeout = 8000
+        conn.readTimeout = 8000
+        conn.requestMethod = "GET"
+        return conn.inputStream.bufferedReader().readText()
     }
 
     private fun log(msg: String) {

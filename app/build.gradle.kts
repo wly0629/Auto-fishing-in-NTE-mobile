@@ -14,7 +14,7 @@ android {
         applicationId = "com.smallrong.autoclicker"
         minSdk = 28
         targetSdk = 34
-        versionCode = 3
+        versionCode = 5
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -25,12 +25,22 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("../autofish-release.keystore")
+            storePassword = "autofish123"
+            keyAlias = "autofish"
+            keyPassword = "autofish123"
+        }
+    }
+
     buildTypes {
         debug {
             isJniDebuggable = true
         }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -38,7 +48,7 @@ android {
         }
     }
 
-    packagingOptions {
+    packaging {
         jniLibs {
             useLegacyPackaging = true
             keepDebugSymbols.add("**/*.so")
@@ -69,6 +79,9 @@ dependencies {
 
     // Coroutines 用于异步处理
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+
+    // AppUpdate 远程更新库
+    implementation("io.github.azhon:appupdate:4.3.6")
 
     // 测试
     testImplementation(libs.junit)
