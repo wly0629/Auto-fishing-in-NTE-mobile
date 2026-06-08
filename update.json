@@ -1,0 +1,13 @@
+{
+  "versionCode": 1,
+  "versionName": "1.0.0",
+  "apkUrl": "https://github.com/wly0629/my-app/releases/download/v1.0.0/app-release.apk",
+  "updateContent": "初始版本发布：内置自动钓鱼脚本、OpenCV 图像识别、AppUpdate 远程更新",
+  "newFeature": [
+    "自动钓鱼脚本",
+    "OpenCV 图像识别",
+    "AppUpdate 远程更新",
+    "屏幕录制捕获"
+  ],
+  "targetSize": "25 MB"
+}
