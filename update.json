@@ -1,13 +1,13 @@
 {
-  "versionCode": 1,
-  "versionName": "1.0.0",
-  "apkUrl": "https://github.com/wly0629/my-app/releases/download/v1.0.0/app-release.apk",
-  "updateContent": "初始版本发布：内置自动钓鱼脚本、OpenCV 图像识别、AppUpdate 远程更新",
+  "versionCode": 2,
+  "versionName": "1.0.1",
+  "apkUrl": "https://github.com/wly0629/Auto-fishing-in-NTE-mobile/releases/download/v1.0.1/app.apk",
+  "updateContent": "包名重构为 com.yihuan.autofish，应用名称改为异环手游自动钓鱼，更新主页标题",
+  "updateLog": "1. 包名重构：com.smallrong.autoclicker → com.yihuan.autofish\n2. 应用名改为「异环手游自动钓鱼」\n3. 主页标题同步更新\n4. GitHub 仓库迁移至 Auto-fishing-in-NTE-mobile",
   "newFeature": [
-    "自动钓鱼脚本",
-    "OpenCV 图像识别",
-    "AppUpdate 远程更新",
-    "屏幕录制捕获"
+    "包名重构 com.yihuan.autofish",
+    "应用名：异环手游自动钓鱼",
+    "GitHub 仓库迁移"
   ],
   "targetSize": "25 MB"
 }

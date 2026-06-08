@@ -39,7 +39,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
-        private const val PACKAGE_NAME = "com.smallrong.autoclicker"
+        private const val PACKAGE_NAME = "com.yihuan.autofish"
 
         /** 悬浮窗服务是否已启动 — 供 FloatingOverlayService 关闭时重置 */
         @Volatile
@@ -411,7 +411,7 @@ class MainActivity : AppCompatActivity() {
      * 从远程 update.json 获取版本信息，使用 AppUpdate 库展示更新弹窗
      */
     private fun checkUpdate() {
-        val updateUrl = "https://raw.githubusercontent.com/wly0629/my-app/main/update.json"
+        val updateUrl = "https://raw.githubusercontent.com/wly0629/Auto-fishing-in-NTE-mobile/main/update.json"
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val jsonStr = fetchUrl(updateUrl)
