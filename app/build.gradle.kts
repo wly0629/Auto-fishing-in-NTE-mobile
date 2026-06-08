@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
 }
 
+val apkVersionName = "1.0.2"
+
 android {
     namespace = "com.yihuan.autofish"
     compileSdk = 34
@@ -15,7 +17,7 @@ android {
         minSdk = 28
         targetSdk = 34
         versionCode = 2
-        versionName = "1.0.1"
+        versionName = apkVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -57,6 +59,14 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            output.outputFileName = "yihuan-autofish_${apkVersionName}.apk"
+        }
     }
 }
 

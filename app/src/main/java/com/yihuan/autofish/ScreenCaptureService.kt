@@ -42,6 +42,13 @@ class ScreenCaptureService : Service() {
 
         private const val VIRTUAL_DISPLAY_NAME = "AutoClickerCapture"
 
+        /**
+         * 帧间隔（毫秒），控制屏幕采集帧率。
+         * 默认 83ms ≈ 12 FPS。可通过外部动态修改以调整帧率。
+         */
+        @Volatile
+        var frameIntervalMs = 83L
+
         /** 屏幕采集回调 */
         var onFrameCaptured: ((Bitmap) -> Unit)? = null
 
@@ -170,7 +177,6 @@ class ScreenCaptureService : Service() {
 
         var frameCount = 0
         var lastFrameTimeMs = 0L
-        val frameIntervalMs = 83L  // ~12 FPS，节省 CPU/内存
 
         // 监听每一帧
         imageReader?.setOnImageAvailableListener({ reader ->

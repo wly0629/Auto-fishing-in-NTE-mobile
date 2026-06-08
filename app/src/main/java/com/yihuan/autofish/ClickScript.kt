@@ -52,11 +52,14 @@ class ClickScript(
 
 
         /** cursor 模板匹配阈值 — cursor 图像干净，可设较高值 */
-        private const val THRESHOLD_CURSOR = 0.95
+        private const val THRESHOLD_CURSOR = 0.90
+
+
 
 
         /** target 模板匹配阈值 — target 图像干净，极高置信度 */
-        private const val THRESHOLD_TARGET = 0.98
+        private const val THRESHOLD_TARGET = 0.90
+
 
 
         /** left/right 按钮模板匹配阈值 */
@@ -64,7 +67,7 @@ class ClickScript(
 
 
         /** step4 模板匹配阈值 */
-        private const val THRESHOLD_STEP4 = 0.70
+        private const val THRESHOLD_STEP4 = 0.80
 
         // ═══════════════════════════════════════════════════════════════
         // 各循环等待时间（独立定义，每条带注释说明）
@@ -75,12 +78,28 @@ class ClickScript(
         private const val LOOP_WAIT_AFTER_STEP1_CLICK_MS = 4000L
         /** 步骤② 循环查找 refer 的间隔时间（毫秒） */
         private const val LOOP_WAIT_STEP2_CYCLE_MS = 200L
+
         /** 步骤③ 找不到 cursor 时重试等待时间（毫秒） */
         private const val LOOP_WAIT_FIND_CURSOR_MS = 100L
         /** 步骤③ 跟踪主循环间隔时间（毫秒） */
         private const val LOOP_WAIT_STEP3_CYCLE_MS = 50L
         /** 步骤③-2 找不到 step4 时重试等待时间（毫秒） */
         private const val LOOP_WAIT_FIND_STEP4_MS = 200L
+
+        // ═══════════════════════════════════════════════════════════════
+        // 固定周期循环的目标间隔时间
+        // 这些值决定每个 capture+match+action 周期的总时长。
+        // 改为固定间隔后，各周期的时长一致（匹配快的周期通过 delay 补齐余量），
+        // 匹配慢的周期则自然占用更长的时间。
+        // ═══════════════════════════════════════════════════════════════
+        /** 步骤② 循环周期目标间隔（毫秒） */
+        private const val CYCLE_INTERVAL_STEP2_MS = 200L
+        /** 步骤③ 跟踪主循环周期目标间隔（毫秒） — 目标 20fps，匹配在±2px 狭窄区域内，可稳定在 50ms 以下 */
+        private const val CYCLE_INTERVAL_STEP3_MS = 50L
+        /** 步骤③-1 refer 匹配的帧间隔 — 每 N 帧才匹配一次，降低开销；50ms/周期 × 5 = 250ms (4fps) */
+        private const val REFER_MATCH_INTERVAL = 5
+        /** 步骤③-2 step4 搜索循环周期目标间隔（毫秒） */
+        private const val CYCLE_INTERVAL_STEP4_MS = 200L
 
         // ═══════════════════════════════════════════════════════════════
         // 其他可调参数
@@ -143,6 +162,8 @@ class ClickScript(
 
     // refer 搜索区域（步骤③ 第一次找到 refer 时计算确定，后续永久复用，不重置）
     private var referSearchArea: Rect? = null
+    // refer 匹配帧计数器 — 每 pass 一次 ③-1 周期 +1，达到 REFER_MATCH_INTERVAL 时执行 refer 匹配
+    private var referMatchCycle = 0
 
     // 左右 target 最后已知位置
     private var lastLeftTargetPos: Point? = null
@@ -186,6 +207,113 @@ class ClickScript(
     private fun captureFrame(): Bitmap? {
         val frame = synchronized(frameLock) { latestFrame }
         return frame?.let { if (it.isRecycled) null else deepCopyBitmap(it) }
+    }
+
+    /**
+     * 固定周期延迟辅助方法。
+     * 记录周期开始时间，计算已消耗时间，delay 剩余时间使得整个周期 = targetIntervalMs。
+     * 如果已消耗时间 >= targetIntervalMs，则立即返回（不 delay）。
+     * 这样保证每个 capture+match+action 周期具有一致的总时长。
+     */
+    private suspend fun delayUntilCycleEnd(cycleStartMs: Long, targetIntervalMs: Long) {
+        val elapsed = System.currentTimeMillis() - cycleStartMs
+        val remaining = targetIntervalMs - elapsed
+        if (remaining > 0) {
+            delay(remaining)
+        }
+    }
+
+    // ══════════════════════════════════════════════
+    // 带预捕获帧的重载匹配方法（用于 Step ③-1 单帧多匹配优化）
+    // ══════════════════════════════════════════════
+
+    /**
+     * 带预捕获帧的 [findElementWithCache] 版本，避免同周期内多次深拷贝帧。
+     * [preCapturedFrame] 由调用方提供并在整个周期内有效，调用方负责回收。
+     */
+    private fun findElementWithCache(
+        templateName: String,
+        threshold: Double,
+        cachedRect: Rect?,
+        defaultSearchArea: Rect?,
+        preCapturedFrame: Bitmap
+    ): org.opencv.core.Rect? {
+        val template = loadTemplate(templateName) ?: return null
+
+        val searchArea: Rect? = if (cachedRect != null) {
+            val screenW = getScreenWidth()
+            val screenH = getScreenHeight()
+            val l = (cachedRect.left - NEARBY_OFFSET).coerceIn(0, screenW)
+            val t = (cachedRect.top - NEARBY_OFFSET).coerceIn(0, screenH)
+            val r = (cachedRect.right + NEARBY_OFFSET).coerceIn(0, screenW)
+            val b = (cachedRect.bottom + NEARBY_OFFSET).coerceIn(0, screenH)
+            if (r <= l || b <= t) null
+            else Rect(l, t, r, b)
+        } else {
+            defaultSearchArea
+        }
+
+        return try {
+            ImageMatcher.matchTemplate(preCapturedFrame, template, threshold, searchArea, null)?.rect
+        } catch (e: Exception) {
+            null
+        }
+        // preCapturedFrame 由调用方统一回收
+    }
+
+    /**
+     * 带预捕获帧的 [findCursorInArea] 版本。
+     */
+    private fun findCursorInArea(area: Rect, preCapturedFrame: Bitmap): org.opencv.core.Rect? {
+        val searchRect = area
+        val searchW = searchRect.right - searchRect.left
+        val searchH = searchRect.bottom - searchRect.top
+        if (searchW <= 0 || searchH <= 0) return null
+
+        val template = loadTemplate("step3cursor.jpg") ?: return null
+
+        return try {
+            ImageMatcher.matchTemplate(preCapturedFrame, template, THRESHOLD_CURSOR, searchRect, null)?.rect
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 带预捕获帧的 [findTargetInSide] 版本。
+     */
+    private fun findTargetInSide(
+        isLeft: Boolean,
+        cursorRect: org.opencv.core.Rect,
+        searchArea: Rect,
+        preCapturedFrame: Bitmap
+    ): org.opencv.core.Rect? {
+        val targetL: Int = searchArea.left
+        val targetR: Int = searchArea.right
+
+        val actualL: Int
+        val actualR: Int
+        if (isLeft) {
+            actualL = targetL
+            actualR = cursorRect.x
+        } else {
+            actualL = cursorRect.x + cursorRect.width
+            actualR = targetR
+        }
+
+        val actualW = actualR - actualL
+        val actualH = searchArea.bottom - searchArea.top
+        if (actualW <= 0 || actualH <= 0) return null
+
+        val searchRect = Rect(actualL, searchArea.top, actualR, searchArea.bottom)
+
+        val template = loadTemplate("step3target.jpg") ?: return null
+
+        return try {
+            ImageMatcher.matchTemplate(preCapturedFrame, template, THRESHOLD_TARGET, searchRect, null)?.rect
+        } catch (e: Exception) {
+            null
+        }
     }
 
     // ══════════════════════════════════════════════
@@ -296,6 +424,7 @@ class ClickScript(
             var step1ClickCount = 0
 
             do {
+                val cycleStartMs = System.currentTimeMillis()
                 step1ClickCount++
                 if (!isRunning) break@mainLoop
 
@@ -315,9 +444,8 @@ class ClickScript(
                     cacheLeftRightButtons()
                 }
 
-                if (referRect == null) {
-                    delay(LOOP_WAIT_STEP2_CYCLE_MS)
-                }
+                // 固定周期延迟：使每个 click+match 周期时长一致
+                delayUntilCycleEnd(cycleStartMs, CYCLE_INTERVAL_STEP2_MS)
             } while (referRect == null && isRunning)
 
             if (!isRunning) break
@@ -335,8 +463,11 @@ class ClickScript(
 
             val trackingStartTime = System.currentTimeMillis()
             var inReferTracking = true   // true = ③-1, false = ③-2
+            referMatchCycle = 0           // refer 帧计数器重置
             // referSearchArea 首次找到 refer 时计算一次，后续永久复用
             while (isRunning) {
+                val cycleStartMs = System.currentTimeMillis()
+
                 // 检查超时
                 if (System.currentTimeMillis() - trackingStartTime > TRACKING_TIMEOUT_MS) {
                     log("⏱ 跟踪超时 ${TRACKING_TIMEOUT_MS / 1000}s，强制退出")
@@ -351,126 +482,162 @@ class ClickScript(
                     // ③-1 refer 存在 → 跟踪 cursor 和 target
                     // ══════════════════════════════════
 
-                    // 检查 refer 是否仍然可见（使用附近搜索）
-                    val currentReferRect = findElementWithCache(
-                        templateName = "step3refer.jpg",
-                        threshold = THRESHOLD_REFER,
-                        cachedRect = cachedReferRect,
-                        defaultSearchArea = getReferDefaultArea()
-                    )
+                    // ★ 核心优化：每周期只捕获一帧，所有匹配复用同一帧
+                    //   refer 每 REFER_MATCH_INTERVAL 帧才匹配一次（~4fps），
+                    //   其余帧只做 cursor + target 匹配（~20fps）
+                    val cycleFrame = captureFrame()
 
-                    if (currentReferRect == null) {
-                        // refer 消失了 → 切换到 ③-2
-                        log("refer 消失 → 切换到 step4 搜索")
-                        inReferTracking = false
-                        continue
-                    }
+                    if (cycleFrame != null) {
+                        try {
+                            // ── refer 匹配（每 N 帧执行一次） ──
+                            var currentReferRect: org.opencv.core.Rect? = null
+                            if (referMatchCycle % REFER_MATCH_INTERVAL == 0) {
+                                currentReferRect = findElementWithCache(
+                                    templateName = "step3refer.jpg",
+                                    threshold = THRESHOLD_REFER,
+                                    cachedRect = cachedReferRect,
+                                    defaultSearchArea = getReferDefaultArea(),
+                                    preCapturedFrame = cycleFrame
+                                )
+                                // 🐛 修复：refer 匹配帧上没找到 → 清除缓存，触发切换到 ③-2
+                                if (currentReferRect == null) {
+                                    cachedReferRect = null
+                                }
+                            }
 
-                    // 计算 refer 搜索区域（仅计算一次，后续复用）
-                    if (referSearchArea == null) {
-                        referSearchArea = calculateReferSearchArea(
-                            currentReferRect.x + currentReferRect.width / 2,
-                            currentReferRect.y,
-                            currentReferRect.y + currentReferRect.height
-                        )
-                        log("📐 计算 refer 搜索区域完成")
-                    }
+                            if (currentReferRect == null) {
+                                // 本周期没有新匹配 refer（落在非 refer 帧），或 refer 已消失
+                                // 非 refer 帧：使用缓存的 refer 区域，继续追踪
+                                // 但需要检查：如果上一次 refer 不在缓存中 → 本周期必须强匹配一次
+                                if (cachedReferRect == null) {
+                                    // 缓存都没了 → 必须立即匹配一次
+                                    currentReferRect = findElementWithCache(
+                                        templateName = "step3refer.jpg",
+                                        threshold = THRESHOLD_REFER,
+                                        cachedRect = null,
+                                        defaultSearchArea = getReferDefaultArea(),
+                                        preCapturedFrame = cycleFrame
+                                    )
+                                }
 
-                    val area = referSearchArea!!
-                    if (area.left >= area.right || area.top >= area.bottom) {
-                        log("⚠️ refer 搜索区域无效，重新计算")
-                        referSearchArea = calculateReferSearchArea(
-                            currentReferRect.x + currentReferRect.width / 2,
-                            currentReferRect.y,
-                            currentReferRect.y + currentReferRect.height
-                        )
-                        continue
-                    }
+                                if (currentReferRect == null && cachedReferRect == null) {
+                                    // refer 真的消失了 → 切换到 ③-2
+                                    log("refer 消失 → 切换到 step4 搜索")
+                                    inReferTracking = false
+                                    referMatchCycle = 0
+                                    continue
+                                }
+                                // currentReferRect 为 null 但 cachedReferRect 还在 → 继续用缓存
+                            }
 
-                    // 查找 cursor
-                    val cursorRect = findCursorInArea(area)
-                    if (cursorRect == null) {
-                        delay(LOOP_WAIT_FIND_CURSOR_MS)
-                        continue
-                    }
+                            // ★ 递增 refer 帧计数器（提前到所有可能导致 continue 的操作之前）
+                            referMatchCycle++
 
-                    val cursorCenterX = cursorRect.x + cursorRect.width / 2
+                            // 计算 refer 搜索区域（仅计算一次，后续永久复用）
+                            if (referSearchArea == null && currentReferRect != null) {
+                                referSearchArea = calculateReferSearchArea(
+                                    currentReferRect.x + currentReferRect.width / 2,
+                                    currentReferRect.y,
+                                    currentReferRect.y + currentReferRect.height
+                                )
+                                log("📐 计算 refer 搜索区域完成")
+                            }
 
-                    // 检查 cursor 左侧是否有 target
-                    val leftTarget = findTargetInSide(
-                        isLeft = true,
-                        cursorRect = cursorRect,
-                        searchArea = area
-                    )
-                    // 检查 cursor 右侧是否有 target
-                    val rightTarget = findTargetInSide(
-                        isLeft = false,
-                        cursorRect = cursorRect,
-                        searchArea = area
-                    )
+                            val area = referSearchArea
+                            if (area == null) {
+                                log("⚠️ refer 搜索区域未初始化，等待...")
+                                continue
+                            }
+                            if (area.left >= area.right || area.top >= area.bottom) {
+                                log("⚠️ refer 搜索区域无效，等待...")
+                                continue
+                            }
 
-                    when {
-                        leftTarget != null && rightTarget != null -> {
-                            // 左右都有 target → 存储位置，不做操作
-                            lastLeftTargetPos = Point(
-                                leftTarget.x + leftTarget.width / 2,
-                                leftTarget.y + leftTarget.height / 2
+                            // 查找 cursor（复用周期帧）
+                            val cursorRect = findCursorInArea(area, cycleFrame)
+                            if (cursorRect == null) {
+                                continue
+                            }
+
+                            val cursorCenterX = cursorRect.x + cursorRect.width / 2
+
+                            // 检查 cursor 左侧是否有 target（复用周期帧）
+                            val leftTarget = findTargetInSide(
+                                isLeft = true,
+                                cursorRect = cursorRect,
+                                searchArea = area,
+                                preCapturedFrame = cycleFrame
                             )
-                            lastRightTargetPos = Point(
-                                rightTarget.x + rightTarget.width / 2,
-                                rightTarget.y + rightTarget.height / 2
+                            // 检查 cursor 右侧是否有 target（复用周期帧）
+                            val rightTarget = findTargetInSide(
+                                isLeft = false,
+                                cursorRect = cursorRect,
+                                searchArea = area,
+                                preCapturedFrame = cycleFrame
                             )
-                            log("⏸ 左右都有 target，等待...")
-                            delay(LOOP_WAIT_STEP3_CYCLE_MS)
-                        }
-                        rightTarget != null -> {
-                            // 只有右侧有 target → 长按 right 按钮
-                            val rightTargetCenterX = rightTarget.x + rightTarget.width / 2
-                            // 长按时间 = (cursor位置 - 左target位置) / 速度
-                            val leftTargetX = lastLeftTargetPos?.x
-                                ?: (area.left + cursorCenterX) / 2  // 近似
-                            val holdMs = abs(cursorCenterX - leftTargetX) / SPEED
-                            val holdMsLong = holdMs.toLong().coerceAtLeast(130L)
-                            log("🔴 仅右侧有 target → 长按 RIGHT ${holdMsLong}ms " +
-                                "(cursor=$cursorCenterX, leftTarget=$leftTargetX)")
-                            cachedRightPos?.let { doLongClick(it.x, it.y, holdMsLong) }
-                                ?: log("⚠️ right 按钮未缓存")
 
-                            // 存储右 target 位置
-                            lastRightTargetPos = Point(
-                                rightTarget.x + rightTarget.width / 2,
-                                rightTarget.y + rightTarget.height / 2
-                            )
-                            delay(LOOP_WAIT_STEP3_CYCLE_MS)
-                        }
-                        leftTarget != null -> {
-                            // 只有左侧有 target → 长按 left 按钮
-                            val leftTargetCenterX = leftTarget.x + leftTarget.width / 2
-                            // 长按时间 = (右target位置 - cursor位置) / 速度
-                            val rightTargetX = lastRightTargetPos?.x
-                                ?: (cursorCenterX + area.right) / 2  // 近似
-                            val holdMs = abs(rightTargetX - cursorCenterX) / SPEED
-                            val holdMsLong = holdMs.toLong().coerceAtLeast(130L)
-                            log("🔴 仅左侧有 target → 长按 LEFT ${holdMsLong}ms " +
-                                "(cursor=$cursorCenterX, rightTarget=$rightTargetX)")
-                            cachedLeftPos?.let { doLongClick(it.x, it.y, holdMsLong) }
-                                ?: log("⚠️ left 按钮未缓存")
+                            when {
+                                leftTarget != null && rightTarget != null -> {
+                                    // 左右都有 target → 存储位置，不做操作
+                                    lastLeftTargetPos = Point(
+                                        leftTarget.x + leftTarget.width / 2,
+                                        leftTarget.y + leftTarget.height / 2
+                                    )
+                                    lastRightTargetPos = Point(
+                                        rightTarget.x + rightTarget.width / 2,
+                                        rightTarget.y + rightTarget.height / 2
+                                    )
+                                    log("⏸ 左右都有 target，等待...")
+                                }
+                                rightTarget != null -> {
+                                    // 只有右侧有 target → 长按 right 按钮
+                                    val rightTargetCenterX = rightTarget.x + rightTarget.width / 2
+                                    val leftTargetX = lastLeftTargetPos?.x
+                                        ?: (area.left + cursorCenterX) / 2
+                                    val holdMs = abs(cursorCenterX - leftTargetX) / SPEED
+                                    val holdMsLong = holdMs.toLong().coerceAtLeast(7
+                                        0L)
+                                    log("🔴 仅右侧有 target → 长按 RIGHT ${holdMsLong}ms " +
+                                        "(cursor=$cursorCenterX, leftTarget=$leftTargetX)")
+                                    cachedRightPos?.let { doLongClick(it.x, it.y, holdMsLong) }
+                                        ?: log("⚠️ right 按钮未缓存")
 
-                            // 存储左 target 位置
-                            lastLeftTargetPos = Point(
-                                leftTarget.x + leftTarget.width / 2,
-                                leftTarget.y + leftTarget.height / 2
-                            )
-                            delay(LOOP_WAIT_STEP3_CYCLE_MS)
-                        }
-                        else -> {
-                            // 左右都没有 target → 跳出循环，重新查找 cursor
-                            lastLeftTargetPos = null
-                            lastRightTargetPos = null
-                            log("两侧都无 target → 重新查找 cursor")
-                            // 继续循环，会重新找 cursor
+                                    lastRightTargetPos = Point(
+                                        rightTarget.x + rightTarget.width / 2,
+                                        rightTarget.y + rightTarget.height / 2
+                                    )
+                                }
+                                leftTarget != null -> {
+                                    // 只有左侧有 target → 长按 left 按钮
+                                    val leftTargetCenterX = leftTarget.x + leftTarget.width / 2
+                                    val rightTargetX = lastRightTargetPos?.x
+                                        ?: (cursorCenterX + area.right) / 2
+                                    val holdMs = abs(rightTargetX - cursorCenterX) / SPEED
+                                    val holdMsLong = holdMs.toLong().coerceAtLeast(70L)
+                                    log("🔴 仅左侧有 target → 长按 LEFT ${holdMsLong}ms " +
+                                        "(cursor=$cursorCenterX, rightTarget=$rightTargetX)")
+                                    cachedLeftPos?.let { doLongClick(it.x, it.y, holdMsLong) }
+                                        ?: log("⚠️ left 按钮未缓存")
+
+                                    lastLeftTargetPos = Point(
+                                        leftTarget.x + leftTarget.width / 2,
+                                        leftTarget.y + leftTarget.height / 2
+                                    )
+                                }
+                                else -> {
+                                    lastLeftTargetPos = null
+                                    lastRightTargetPos = null
+                                    log("两侧都无 target → 重新查找 cursor")
+                                }
+                            }
+
+                        } finally {
+                            // 帧在该周期所有匹配使用完毕后回收，不再被引用
+                            cycleFrame.recycle()
                         }
                     }
+
+                    delayUntilCycleEnd(cycleStartMs, CYCLE_INTERVAL_STEP3_MS)
                 } else {
                     // ══════════════════════════════════
                     // ③-2 refer 消失 → 查找 step4
@@ -506,10 +673,12 @@ class ClickScript(
                         lastRightTargetPos = null
                         isFirstLoop = true
 
-                        // 进入循环：每 200ms 点击一次 step4，直到 step1 出现
+                        // 进入循环：每 50ms 点击一次 step4，直到 step1 出现
                         setPhase("④ 循环点击 step4 等待 step1")
 
                         while (isRunning) {
+                            val cycleStartMs = System.currentTimeMillis()
+
                             // 查找 step1
                             val newStep1Rect = findElementWithCache(
                                 templateName = "step1.jpg",
@@ -531,7 +700,7 @@ class ClickScript(
                             // step1 未出现 → 点击 step4 并等待
                             doClick(step4ClickX, step4ClickY)
                             log("👆 点击 step4（等待 step1 出现中）")
-                            delay(LOOP_WAIT_FIND_STEP1_MS)
+                            delayUntilCycleEnd(cycleStartMs, 50L)
                         }
 
                         if (!isRunning) break
@@ -597,14 +766,8 @@ class ClickScript(
                         continue
                     }
 
-                    // refer 没出现 → 等待后继续查找 step4
-                    delay(LOOP_WAIT_FIND_STEP4_MS)
-                }
-
-                // 跟踪循环内的正常 delay（针对 ③-1 场景，findCursor 和 target 检查用）
-                // 如果没有 delay 且左右无 target 的场景，给一个循环间隔
-                if (inReferTracking) {
-                    // 已经在上面的分支里处理了 delay，不需要额外 delay
+                    // refer 没出现 → 快速等待后继续查找 step4
+                    delayUntilCycleEnd(cycleStartMs, 50L)
                 }
             }
 
