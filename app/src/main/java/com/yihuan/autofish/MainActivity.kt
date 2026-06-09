@@ -20,7 +20,7 @@ import androidx.appcompat.widget.SwitchCompat
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import com.azhon.appupdate.manager.DownloadManager
+
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -408,7 +408,7 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 检查远程更新（启动后延迟2秒调用）
-     * 从远程 update.json 获取版本信息，使用 AppUpdate 库展示更新弹窗
+     * 从远程 update.json 获取版本信息，展示简洁的白色更新弹窗
      */
     private fun checkUpdate() {
         val updateUrl = "https://raw.githubusercontent.com/wly0629/yihuan-autofish-android/main/update.json"
@@ -420,7 +420,6 @@ class MainActivity : AppCompatActivity() {
                 val remoteVersionName = obj.optString("versionName", "")
                 val apkUrl = obj.optString("apkUrl", "")
                 val updateLog = obj.optString("updateLog", "暂无更新说明")
-                val apkSize = obj.optString("size", "0MB")
 
                 // 只在远程版本更新时才弹窗
                 if (remoteVersionCode > BuildConfig.VERSION_CODE && apkUrl.isNotEmpty()) {
@@ -430,20 +429,11 @@ class MainActivity : AppCompatActivity() {
                             .setMessage(updateLog)
                             .setPositiveButton("立即更新") { _, _ ->
                                 try {
-                                    val manager = DownloadManager.Builder(this@MainActivity).run {
-                                        apkUrl(apkUrl)
-                                        apkName("autofish.apk")
-                                        smallIcon(R.mipmap.ic_launcher)
-                                        apkVersionCode(remoteVersionCode)
-                                        apkVersionName(remoteVersionName)
-                                        apkSize(apkSize)
-                                        apkDescription(updateLog)
-                                        showNotification(true)
-                                        build()
-                                    }
-                                    manager.download()
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(apkUrl))
+                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    startActivity(intent)
                                 } catch (e: Exception) {
-                                    Log.e(TAG, "启动更新组件失败", e)
+                                    Log.e(TAG, "打开下载链接失败", e)
                                 }
                             }
                             .setNegativeButton("稍后再说", null)

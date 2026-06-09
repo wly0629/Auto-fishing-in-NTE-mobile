@@ -293,16 +293,86 @@
 
         </androidx.cardview.widget.CardView>
 
-        <!-- ========== 控件 4: 导入图片 + 测试（同行各半） ========== -->
+        <!-- ========== 控件 4: 导入图片（全宽） ========== -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardImportImage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp"
+            app:cardBackgroundColor="#16213E"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="4dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:padding="18dp">
+
+                <FrameLayout
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="@drawable/circle_indicator"
+                    android:backgroundTint="#32325D">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:text="🖼️"
+                        android:textSize="26sp"
+                        android:gravity="center" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="14dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="导入图片"
+                        android:textColor="#E0E0E0"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="替换内置模板图片"
+                        android:textColor="#808090"
+                        android:textSize="13sp"
+                        android:layout_marginTop="2dp" />
+
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="›"
+                    android:textColor="#505060"
+                    android:textSize="24sp"
+                    android:layout_marginStart="8dp" />
+
+            </LinearLayout>
+
+        </androidx.cardview.widget.CardView>
+
+        <!-- ========== 两个测试控件（等宽并列） ========== -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:layout_marginBottom="14dp">
 
-            <!-- 导入图片 -->
+            <!-- 绘制测试 -->
             <androidx.cardview.widget.CardView
-                android:id="@+id/cardImportImage"
+                android:id="@+id/cardTest"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -318,66 +388,11 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
-                    android:padding="14dp">
+                    android:padding="18dp">
 
                     <FrameLayout
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:background="@drawable/circle_indicator"
-                        android:backgroundTint="#32325D">
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:text="🖼️"
-                            android:textSize="22sp"
-                            android:gravity="center" />
-                    </FrameLayout>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:layout_marginStart="10dp"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="导入图片"
-                            android:textColor="#E0E0E0"
-                            android:textSize="15sp"
-                            android:textStyle="bold" />
-
-                    </LinearLayout>
-
-                </LinearLayout>
-
-            </androidx.cardview.widget.CardView>
-
-            <!-- 测试 -->
-            <androidx.cardview.widget.CardView
-                android:id="@+id/cardTest"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="7dp"
-                app:cardBackgroundColor="#16213E"
-                app:cardCornerRadius="14dp"
-                app:cardElevation="4dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="?attr/selectableItemBackground">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:padding="14dp">
-
-                    <FrameLayout
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
                         android:background="@drawable/circle_indicator"
                         android:backgroundTint="#32325D">
 
@@ -385,7 +400,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="match_parent"
                             android:text="🧪"
-                            android:textSize="22sp"
+                            android:textSize="26sp"
                             android:gravity="center" />
 
                     </FrameLayout>
@@ -394,7 +409,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:layout_marginStart="10dp"
+                        android:layout_marginStart="14dp"
                         android:orientation="vertical">
 
                         <TextView
@@ -402,7 +417,7 @@
                             android:layout_height="wrap_content"
                             android:text="绘制测试"
                             android:textColor="#E0E0E0"
-                            android:textSize="15sp"
+                            android:textSize="17sp"
                             android:textStyle="bold" />
 
                         <TextView
@@ -410,7 +425,7 @@
                             android:layout_height="wrap_content"
                             android:text="查看图像识别匹配区域"
                             android:textColor="#808090"
-                            android:textSize="12sp"
+                            android:textSize="13sp"
                             android:layout_marginTop="2dp" />
 
                     </LinearLayout>
@@ -437,11 +452,11 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
-                    android:padding="14dp">
+                    android:padding="18dp">
 
                     <FrameLayout
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
                         android:background="@drawable/circle_indicator"
                         android:backgroundTint="#32325D">
 
@@ -449,7 +464,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="match_parent"
                             android:text="🎯"
-                            android:textSize="22sp"
+                            android:textSize="26sp"
                             android:gravity="center" />
                     </FrameLayout>
 
@@ -457,7 +472,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:layout_marginStart="10dp"
+                        android:layout_marginStart="14dp"
                         android:orientation="vertical">
 
                         <TextView
@@ -465,7 +480,7 @@
                             android:layout_height="wrap_content"
                             android:text="识别点击"
                             android:textColor="#E0E0E0"
-                            android:textSize="15sp"
+                            android:textSize="17sp"
                             android:textStyle="bold" />
 
                         <TextView
@@ -473,7 +488,7 @@
                             android:layout_height="wrap_content"
                             android:text="验证无障碍点击坐标"
                             android:textColor="#808090"
-                            android:textSize="12sp"
+                            android:textSize="13sp"
                             android:layout_marginTop="2dp" />
 
                     </LinearLayout>

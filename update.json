@@ -1,8 +1,8 @@
 {
-  "versionCode": 4,
-  "versionName": "1.0.4",
-  "apkUrl": "https://github.com/wly0629/yihuan-autofish-android/releases/download/v1.0.4/yihuan-autofish_1.0.4.apk",
-  "updateContent": "参数优化；性能优化；限制长按时间",
-  "updateLog": "1. 参数优化：speed从0.31调整为0.3\n2. 限制长按时间：最小70ms，最大500ms，防止异常卡死\n3. 性能优化：移除热路径中的冗余深拷贝，采用灰度Mat单帧转换复用，降低内存带宽消耗\n4. 其他多项代码优化与稳定性改进",
+  "versionCode": 5,
+  "versionName": "1.0.5",
+  "apkUrl": "https://github.com/wly0629/yihuan-autofish-android/releases/download/v1.0.5/yihuan-autofish_1.0.5.apk",
+  "updateContent": "修复双弹窗；测试控件等长；版本升级",
+  "updateLog": "1. 去除 appupdate 库自带更新弹窗，只保留白色简约弹窗，解决双弹窗重复出现问题\n2. 主页面导入图片改为全宽，两个测试控件等宽并列，更加美观\n3. 版本升级至 v1.0.5",
   "size": "24.2MB"
 }
