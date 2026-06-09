@@ -1,14 +1,8 @@
 {
-  "versionCode": 2,
-  "versionName": "1.0.2",
-  "apkUrl": "https://github.com/wly0629/yihuan-autofish-android/releases/download/v1.0.2/yihuan-autofish_1.0.2.apk",
-  "updateContent": "优化了各项参数；修复 refer 消失后坐标缓存不清理的 Bug；引入帧复用机制，每周期只捕获一帧；所有步骤使用统一固定周期管理",
-  "updateLog": "1. 优化了各项参数\n2. 引入固定周期延迟机制 delayUntilCycleEnd\n3. 引入帧复用，每周期只捕获一帧\n4. 修复 refer 消失后坐标缓存不清理的 Bug\n5. 修复 refer 匹配计数器被 continue 跳过的 Bug\n6. 提升 step4 搜索帧率 200ms → 50ms\n7. 重构跟踪循环周期管理",
-  "newFeature": [
-    "固定周期延迟机制",
-    "帧复用减少截屏开销",
-    "refer 匹配帧间隔优化 (4fps)",
-    "step4 搜索帧率提升至 20fps"
-  ],
-  "targetSize": "25 MB"
+  "versionCode": 3,
+  "versionName": "1.0.3",
+  "apkUrl": "https://github.com/wly0629/yihuan-autofish-android/releases/download/v1.0.3/yihuan-autofish_1.0.3.apk",
+  "updateContent": "优化Cursor追踪；更新弹窗改为简约风格；更换App图标；修复编译错误",
+  "updateLog": "1. 优化Cursor追踪：速度改为0.31，增加移动距离，跟踪效果更好\n2. 更新弹窗改为简约白板风格（无顶部背景图）\n3. 更换了App图标\n4. 修复ClickScript.kt中的编译错误",
+  "size": "24.2MB"
 }

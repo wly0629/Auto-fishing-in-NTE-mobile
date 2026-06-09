@@ -411,7 +411,7 @@ class MainActivity : AppCompatActivity() {
      * 从远程 update.json 获取版本信息，使用 AppUpdate 库展示更新弹窗
      */
     private fun checkUpdate() {
-        val updateUrl = "https://raw.githubusercontent.com/wly0629/Auto-fishing-in-NTE-mobile/main/update.json"
+        val updateUrl = "https://raw.githubusercontent.com/wly0629/yihuan-autofish-android/main/update.json"
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val jsonStr = fetchUrl(updateUrl)
