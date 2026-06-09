@@ -425,22 +425,29 @@ class MainActivity : AppCompatActivity() {
                 // 只在远程版本更新时才弹窗
                 if (remoteVersionCode > BuildConfig.VERSION_CODE && apkUrl.isNotEmpty()) {
                     withContext(Dispatchers.Main) {
-                        try {
-                            val manager = DownloadManager.Builder(this@MainActivity).run {
-                                apkUrl(apkUrl)
-                                apkName("autofish.apk")
-                                smallIcon(R.mipmap.ic_launcher)
-                                apkVersionCode(remoteVersionCode)
-                                apkVersionName(remoteVersionName)
-                                apkSize(apkSize)
-                                apkDescription(updateLog)
-                                showNotification(true)
-                                build()
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle("发现新版本 v$remoteVersionName")
+                            .setMessage(updateLog)
+                            .setPositiveButton("立即更新") { _, _ ->
+                                try {
+                                    val manager = DownloadManager.Builder(this@MainActivity).run {
+                                        apkUrl(apkUrl)
+                                        apkName("autofish.apk")
+                                        smallIcon(R.mipmap.ic_launcher)
+                                        apkVersionCode(remoteVersionCode)
+                                        apkVersionName(remoteVersionName)
+                                        apkSize(apkSize)
+                                        apkDescription(updateLog)
+                                        showNotification(true)
+                                        build()
+                                    }
+                                    manager.download()
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "启动更新组件失败", e)
+                                }
                             }
-                            manager.download()
-                        } catch (e: Exception) {
-                            Log.e(TAG, "启动更新组件失败", e)
-                        }
+                            .setNegativeButton("稍后再说", null)
+                            .show()
                     }
                 } else {
                     Log.d(TAG, "当前已是最新版本 (${BuildConfig.VERSION_NAME})")

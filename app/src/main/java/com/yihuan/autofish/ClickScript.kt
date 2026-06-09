@@ -107,7 +107,7 @@ class ClickScript(
         /** 所有元素的"附近"搜索偏移量（X/Y ± 此值），用于有缓存位置时的窄范围搜索 */
         private const val NEARBY_OFFSET = 2
         /** 移动速度（像素/毫秒），用于计算长按时间 = 距离 / 速度 */
-        private const val SPEED = 0.33
+        private const val SPEED = 0.31
 
         /** 跟踪超时（毫秒）*/
         private const val TRACKING_TIMEOUT_MS = 60_000L
@@ -595,8 +595,7 @@ class ClickScript(
                                     val leftTargetX = lastLeftTargetPos?.x
                                         ?: (area.left + cursorCenterX) / 2
                                     val holdMs = abs(cursorCenterX - leftTargetX) / SPEED
-                                    val holdMsLong = holdMs.toLong().coerceAtLeast(7
-                                        0L)
+                                    val holdMsLong = holdMs.toLong().coerceAtLeast(70L)
                                     log("🔴 仅右侧有 target → 长按 RIGHT ${holdMsLong}ms " +
                                         "(cursor=$cursorCenterX, leftTarget=$leftTargetX)")
                                     cachedRightPos?.let { doLongClick(it.x, it.y, holdMsLong) }
