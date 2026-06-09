@@ -92,7 +92,8 @@ class ClickScript(
         // ═══════════════════════════════════════════════════════════════
         // 固定周期循环的目标间隔时间
         // 这些值决定每个 capture+match+action 周期的总时长。
-        // 改为固定间隔后，各周期的时长一致（匹配快的周期通过 delay 补齐余量），
+        // 改为固定间隔后，各周期的时长一致（匹配快的周期通过 delay 补齐余量）
+        // SPEED≈0.36px/ms → 786px/66帧@30fps ≈ 2200ms（约0.36px/ms）
         // 匹配慢的周期则自然占用更长的时间。
         // ═══════════════════════════════════════════════════════════════
         /** 步骤② 循环周期目标间隔（毫秒） */
@@ -110,7 +111,9 @@ class ClickScript(
         /** 所有元素的"附近"搜索偏移量（X/Y ± 此值），用于有缓存位置时的窄范围搜索 */
         private const val NEARBY_OFFSET = 2
         /** 移动速度（像素/毫秒），用于计算长按时间 = 距离 / 速度 */
-        private const val SPEED = 0.34
+        private const val SPEED = 0.36
+        /** 基础脉冲长度（毫秒），分段脉冲时每个小脉冲的持续时间 */
+        private const val BASE_PULSE_MS = 8L
 
         /** 跟踪超时（毫秒）*/
         private const val TRACKING_TIMEOUT_MS = 60_000L
@@ -672,7 +675,7 @@ class ClickScript(
                                     val leftTargetX = lastLeftTargetPos?.x
                                         ?: (area.left + cursorCenterX) / 2
                                     val holdMs = abs(cursorCenterX - leftTargetX) / SPEED
-                                    val maxPulseMs = holdMs.toLong().coerceIn(150L, 500L)
+                                    val maxPulseMs = holdMs.toLong().coerceIn(5L, 50L)
                                     log("🔴 仅右侧有 target → 长按 RIGHT ${maxPulseMs}ms (分段监测) " +
                                         "(cursor=$cursorCenterX, leftTarget=$leftTargetX)")
 
@@ -681,9 +684,10 @@ class ClickScript(
                                         val pulseStartTime = System.currentTimeMillis()
                                         var accumulatedMs = 0L
                                         while (accumulatedMs < maxPulseMs && isRunning) {
-                                            val burstMs = minOf(30L, maxPulseMs - accumulatedMs)
+                                            val remaining = maxPulseMs - accumulatedMs
+                                            val burstMs = minOf(BASE_PULSE_MS, remaining)
                                             doLongClick(cachedRightPos!!.x, cachedRightPos!!.y, burstMs)
-                                            delay(20)
+                                            delay(5)
 
                                             // 捕获最新帧，重新检查 cursor 和 target 情况
                                             val checkFrame = peekFrame()
@@ -731,7 +735,7 @@ class ClickScript(
                                     val rightTargetX = lastRightTargetPos?.x
                                         ?: (cursorCenterX + area.right) / 2
                                     val holdMs = abs(rightTargetX - cursorCenterX) / SPEED
-                                    val maxPulseMs = holdMs.toLong().coerceIn(150L, 500L)
+                                    val maxPulseMs = holdMs.toLong().coerceIn(10L, 50L)
                                     log("🔴 仅左侧有 target → 长按 LEFT ${maxPulseMs}ms (分段监测) " +
                                         "(cursor=$cursorCenterX, rightTarget=$rightTargetX)")
 
@@ -740,9 +744,10 @@ class ClickScript(
                                         val pulseStartTime = System.currentTimeMillis()
                                         var accumulatedMs = 0L
                                         while (accumulatedMs < maxPulseMs && isRunning) {
-                                            val burstMs = minOf(30L, maxPulseMs - accumulatedMs)
+                                            val remaining = maxPulseMs - accumulatedMs
+                                            val burstMs = minOf(BASE_PULSE_MS, remaining)
                                             doLongClick(cachedLeftPos!!.x, cachedLeftPos!!.y, burstMs)
-                                            delay(20)
+                                            delay(5)
 
                                             // 捕获最新帧，重新检查 cursor 和 target 情况
                                             val checkFrame = peekFrame()

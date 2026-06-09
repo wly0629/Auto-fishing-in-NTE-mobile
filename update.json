@@ -2,7 +2,7 @@
   "versionCode": 5,
   "versionName": "1.0.5",
   "apkUrl": "https://github.com/wly0629/yihuan-autofish-android/releases/download/v1.0.5/yihuan-autofish_1.0.5.apk",
-  "updateContent": "修复双弹窗；测试控件等长；版本升级",
-  "updateLog": "1. 去除 appupdate 库自带更新弹窗，只保留白色简约弹窗，解决双弹窗重复出现问题\n2. 主页面导入图片改为全宽，两个测试控件等宽并列，更加美观\n3. 版本升级至 v1.0.5",
-  "size": "24.2MB"
+  "size": 25424705,
+  "updateContent": "v1.0.5 更新内容：\n1. 光标追踪速度优化：SPEED 0.34→0.36，匹配实际游戏光标速度；最大脉冲时长 500ms→50ms，更精细的分段追踪\n2. 移除速度追踪和自适应脉冲逻辑，恢复固定脉冲方案\n3. 优化光标移动参数（BASE_PULSE_MS 8ms，长按时间范围 5~50ms）\n4. 修复监控循环帧检测失效问题（delay 20ms→5ms）\n5. 删除点击位置 Toast 提示，减少性能干扰",
+  "updateLog": "v1.0.5 更新内容：\n\n1. 光标追踪速度优化\n   - SPEED 0.34→0.36，匹配实际光标速度（786px/66帧@30fps≈0.36px/ms）\n   - 最大脉冲时长 500ms→50ms，更精细的分段追踪，防止超调\n   - 新增 BASE_PULSE_MS=8ms 基础脉冲常量\n\n2. 移除速度追踪和自适应脉冲逻辑，恢复固定脉冲方案\n\n3. 优化光标移动参数\n   - 长按时间范围: coerceIn(150L, 500L)→coerceIn(5L, 50L)右/coerceIn(10L, 50L)左\n   - 引入固定 BASE_PULSE_MS=8ms 脉冲\n\n4. 修复监控循环帧检测失效问题\n   - doLongClick 后 delay(20)→delay(5)，加快帧捕获响应\n\n5. 删除点击位置 Toast 提示\n   - 移除 \"点击: (x,y)\" 和 \"长按: (x,y) xxxms\" 的 Toast\n   - 清理不再使用的 Handler / Looper / Toast 导入"
 }

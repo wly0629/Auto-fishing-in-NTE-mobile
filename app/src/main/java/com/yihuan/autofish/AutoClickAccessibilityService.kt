@@ -5,10 +5,7 @@ import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.graphics.Point
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
-import android.widget.Toast
 import android.view.accessibility.AccessibilityEvent
 
 /**
@@ -111,11 +108,6 @@ class AutoClickAccessibilityService : AccessibilityService() {
         ClickEventMonitor.lastY = y
         ClickEventMonitor.lastActionType = 0
         android.util.Log.i("ClickTest", "点击: ($x, $y) | 总 ${ClickEventMonitor.clickCount} 次")
-
-        // Toast 需要抛到主线程
-        Handler(Looper.getMainLooper()).post {
-            Toast.makeText(this@AutoClickAccessibilityService, "点击: ($x, $y)", Toast.LENGTH_SHORT).show()
-        }
     }
 
     private fun doLongClick(x: Int, y: Int, durationMs: Long) {
@@ -141,11 +133,6 @@ class AutoClickAccessibilityService : AccessibilityService() {
         ClickEventMonitor.lastY = y
         ClickEventMonitor.lastActionType = 1
         android.util.Log.i("ClickTest", "长按: ($x, $y) | ${durationMs}ms | 总 ${ClickEventMonitor.clickCount} 次")
-
-        // Toast 需要抛到主线程
-        Handler(Looper.getMainLooper()).post {
-            Toast.makeText(this@AutoClickAccessibilityService, "长按: ($x, $y) ${durationMs}ms", Toast.LENGTH_SHORT).show()
-        }
     }
 
     private fun doSwipe(startX: Int, startY: Int, endX: Int, endY: Int, durationMs: Long) {
