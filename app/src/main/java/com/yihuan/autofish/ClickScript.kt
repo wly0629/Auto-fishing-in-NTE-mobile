@@ -110,7 +110,7 @@ class ClickScript(
         /** 所有元素的"附近"搜索偏移量（X/Y ± 此值），用于有缓存位置时的窄范围搜索 */
         private const val NEARBY_OFFSET = 2
         /** 移动速度（像素/毫秒），用于计算长按时间 = 距离 / 速度 */
-        private const val SPEED = 0.3
+        private const val SPEED = 0.34
 
         /** 跟踪超时（毫秒）*/
         private const val TRACKING_TIMEOUT_MS = 60_000L
@@ -672,32 +672,118 @@ class ClickScript(
                                     val leftTargetX = lastLeftTargetPos?.x
                                         ?: (area.left + cursorCenterX) / 2
                                     val holdMs = abs(cursorCenterX - leftTargetX) / SPEED
-                                    val holdMsLong = holdMs.toLong().coerceIn(70L, 500L)
-                                    log("🔴 仅右侧有 target → 长按 RIGHT ${holdMsLong}ms " +
+                                    val maxPulseMs = holdMs.toLong().coerceIn(150L, 500L)
+                                    log("🔴 仅右侧有 target → 长按 RIGHT ${maxPulseMs}ms (分段监测) " +
                                         "(cursor=$cursorCenterX, leftTarget=$leftTargetX)")
-                                    cachedRightPos?.let { doLongClick(it.x, it.y, holdMsLong) }
-                                        ?: log("⚠️ right 按钮未缓存")
 
-                                    lastRightTargetPos = Point(
-                                        rightTarget.x + rightTarget.width / 2,
-                                        rightTarget.y + rightTarget.height / 2
-                                    )
+                                    // ★ 监测式分段长按：拆分为短脉冲，每段间捕获帧检查方向是否变化
+                                    if (cachedRightPos != null) {
+                                        val pulseStartTime = System.currentTimeMillis()
+                                        var accumulatedMs = 0L
+                                        while (accumulatedMs < maxPulseMs && isRunning) {
+                                            val burstMs = minOf(30L, maxPulseMs - accumulatedMs)
+                                            doLongClick(cachedRightPos!!.x, cachedRightPos!!.y, burstMs)
+                                            delay(20)
+
+                                            // 捕获最新帧，重新检查 cursor 和 target 情况
+                                            val checkFrame = peekFrame()
+                                            if (checkFrame != null) {
+                                                val checkGray = bitmapToGrayMat(checkFrame)
+                                                if (checkGray != null) {
+                                                    try {
+                                                        val areaThis = referSearchArea
+                                                        if (areaThis != null && areaThis.left < areaThis.right) {
+                                                            val cursorNow = findCursorInAreaGray(areaThis, checkGray)
+                                                            if (cursorNow != null) {
+                                                                val cursorNowX = cursorNow.x + cursorNow.width / 2
+                                                                // 检查是否有左侧 target 出现（方向反转信号）
+                                                                val leftNow = findTargetInSideGray(
+                                                                    isLeft = true,
+                                                                    cursorRect = cursorNow,
+                                                                    searchArea = areaThis,
+                                                                    grayMat = checkGray
+                                                                )
+                                                                // cursor 接近目标或左侧出现 target → 提前停止
+                                                                if (leftNow != null || abs(cursorNowX - leftTargetX) <= 4) {
+                                                                    log("⏹ 右按监测: ${if (leftNow != null) "左侧出现 target" else "cursor 已到达"}，提前停止")
+                                                                    break
+                                                                }
+                                                            }
+                                                        }
+                                                    } finally {
+                                                        checkGray.release()
+                                                    }
+                                                }
+                                            }
+
+                                            accumulatedMs = System.currentTimeMillis() - pulseStartTime
+                                        }
+                                        lastRightTargetPos = Point(
+                                            rightTarget.x + rightTarget.width / 2,
+                                            rightTarget.y + rightTarget.height / 2
+                                        )
+                                    } else {
+                                        log("⚠️ right 按钮未缓存")
+                                    }
                                 }
                                 leftTarget != null -> {
                                     val leftTargetCenterX = leftTarget.x + leftTarget.width / 2
                                     val rightTargetX = lastRightTargetPos?.x
                                         ?: (cursorCenterX + area.right) / 2
                                     val holdMs = abs(rightTargetX - cursorCenterX) / SPEED
-                                    val holdMsLong = holdMs.toLong().coerceIn(70L, 500L)
-                                    log("🔴 仅左侧有 target → 长按 LEFT ${holdMsLong}ms " +
+                                    val maxPulseMs = holdMs.toLong().coerceIn(150L, 500L)
+                                    log("🔴 仅左侧有 target → 长按 LEFT ${maxPulseMs}ms (分段监测) " +
                                         "(cursor=$cursorCenterX, rightTarget=$rightTargetX)")
-                                    cachedLeftPos?.let { doLongClick(it.x, it.y, holdMsLong) }
-                                        ?: log("⚠️ left 按钮未缓存")
 
-                                    lastLeftTargetPos = Point(
-                                        leftTarget.x + leftTarget.width / 2,
-                                        leftTarget.y + leftTarget.height / 2
-                                    )
+                                    // ★ 监测式分段长按：拆分为短脉冲，每段间捕获帧检查方向是否变化
+                                    if (cachedLeftPos != null) {
+                                        val pulseStartTime = System.currentTimeMillis()
+                                        var accumulatedMs = 0L
+                                        while (accumulatedMs < maxPulseMs && isRunning) {
+                                            val burstMs = minOf(30L, maxPulseMs - accumulatedMs)
+                                            doLongClick(cachedLeftPos!!.x, cachedLeftPos!!.y, burstMs)
+                                            delay(20)
+
+                                            // 捕获最新帧，重新检查 cursor 和 target 情况
+                                            val checkFrame = peekFrame()
+                                            if (checkFrame != null) {
+                                                val checkGray = bitmapToGrayMat(checkFrame)
+                                                if (checkGray != null) {
+                                                    try {
+                                                        val areaThis = referSearchArea
+                                                        if (areaThis != null && areaThis.left < areaThis.right) {
+                                                            val cursorNow = findCursorInAreaGray(areaThis, checkGray)
+                                                            if (cursorNow != null) {
+                                                                val cursorNowX = cursorNow.x + cursorNow.width / 2
+                                                                // 检查是否有右侧 target 出现（方向反转信号）
+                                                                val rightNow = findTargetInSideGray(
+                                                                    isLeft = false,
+                                                                    cursorRect = cursorNow,
+                                                                    searchArea = areaThis,
+                                                                    grayMat = checkGray
+                                                                )
+                                                                // cursor 接近目标或右侧出现 target → 提前停止
+                                                                if (rightNow != null || abs(cursorNowX - rightTargetX) <= 4) {
+                                                                    log("⏹ 左按监测: ${if (rightNow != null) "右侧出现 target" else "cursor 已到达"}，提前停止")
+                                                                    break
+                                                                }
+                                                            }
+                                                        }
+                                                    } finally {
+                                                        checkGray.release()
+                                                    }
+                                                }
+                                            }
+
+                                            accumulatedMs = System.currentTimeMillis() - pulseStartTime
+                                        }
+                                        lastLeftTargetPos = Point(
+                                            leftTarget.x + leftTarget.width / 2,
+                                            leftTarget.y + leftTarget.height / 2
+                                        )
+                                    } else {
+                                        log("⚠️ left 按钮未缓存")
+                                    }
                                 }
                                 else -> {
                                     lastLeftTargetPos = null
