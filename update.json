@@ -1,8 +1,8 @@
 {
-  "versionCode": 3,
-  "versionName": "1.0.3",
-  "apkUrl": "https://github.com/wly0629/yihuan-autofish-android/releases/download/v1.0.3/yihuan-autofish_1.0.3.apk",
-  "updateContent": "优化Cursor追踪；更新弹窗改为简约风格；更换App图标；修复编译错误",
-  "updateLog": "1. 优化Cursor追踪：速度改为0.31，增加移动距离，跟踪效果更好\n2. 更新弹窗改为简约白板风格（无顶部背景图）\n3. 更换了App图标\n4. 修复ClickScript.kt中的编译错误",
+  "versionCode": 4,
+  "versionName": "1.0.4",
+  "apkUrl": "https://github.com/wly0629/yihuan-autofish-android/releases/download/v1.0.4/yihuan-autofish_1.0.4.apk",
+  "updateContent": "参数优化；性能优化；限制长按时间",
+  "updateLog": "1. 参数优化：speed从0.31调整为0.3\n2. 限制长按时间：最小70ms，最大500ms，防止异常卡死\n3. 性能优化：移除热路径中的冗余深拷贝，采用灰度Mat单帧转换复用，降低内存带宽消耗\n4. 其他多项代码优化与稳定性改进",
   "size": "24.2MB"
 }

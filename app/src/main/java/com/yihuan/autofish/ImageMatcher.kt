@@ -196,6 +196,84 @@ object ImageMatcher {
     }
 
     /**
+     * 使用预转换的灰度 Mat 进行模板匹配（避免同帧多次 bitmapToMat + cvtColor 的重复转换）
+     *
+     * 此方法直接使用传入的灰度 Mat，通过 submat 视图裁剪搜索区域（O(1)，不复制数据），
+     * 只对模板执行一次 bitmapToMat + cvtColor，适合 Step ③-1 的 20fps 热循环。
+     *
+     * @param screenGray 预转换的全屏灰度 Mat（由调用方创建和释放）
+     * @param templateBitmap 模板图片
+     * @param threshold 匹配阈值
+     * @param searchArea 搜索区域（屏幕坐标），null=全屏
+     * @return 匹配结果
+     */
+    fun matchTemplate(
+        screenGray: Mat,
+        templateBitmap: Bitmap,
+        threshold: Double = 0.8,
+        searchArea: Rect? = null,
+        maskBitmap: Bitmap? = null
+    ): MatchResult? {
+        val startTime = System.currentTimeMillis()
+
+        // 从灰度 Mat 中截取搜索区域（使用 submat，O(1) 不复制数据）
+        val searchMat: Mat = if (searchArea != null) {
+            val safeLeft = searchArea.left.coerceIn(0, screenGray.cols())
+            val safeTop = searchArea.top.coerceIn(0, screenGray.rows())
+            val safeRight = searchArea.right.coerceIn(0, screenGray.cols())
+            val safeBottom = searchArea.bottom.coerceIn(0, screenGray.rows())
+            if (safeRight <= safeLeft || safeBottom <= safeTop) return null
+            screenGray.submat(safeTop, safeBottom, safeLeft, safeRight)
+        } else {
+            screenGray
+        }
+
+        // 转换模板为灰度（模板较小，每次转换开销低）
+        val templateMat = Mat()
+        Utils.bitmapToMat(templateBitmap, templateMat)
+        val templateGray = Mat()
+        Imgproc.cvtColor(templateMat, templateGray, Imgproc.COLOR_RGBA2GRAY)
+        templateMat.release()
+
+        if (templateGray.cols() > searchMat.cols() || templateGray.rows() > searchMat.rows()) {
+            if (searchArea != null) searchMat.release()
+            templateGray.release()
+            return null
+        }
+
+        val resultCols = searchMat.cols() - templateGray.cols() + 1
+        val resultRows = searchMat.rows() - templateGray.rows() + 1
+        val result = Mat(resultRows, resultCols, CvType.CV_32FC1)
+
+        Imgproc.matchTemplate(searchMat, templateGray, result, Imgproc.TM_CCOEFF_NORMED)
+
+        val minMaxResult = Core.minMaxLoc(result)
+        val maxVal = minMaxResult.maxVal
+        val maxLoc = minMaxResult.maxLoc
+
+        if (searchArea != null) searchMat.release()
+        templateGray.release()
+        result.release()
+
+        if (maxVal < 0.0 || maxVal < threshold) return null
+
+        val offsetX = searchArea?.left ?: 0
+        val offsetY = searchArea?.top ?: 0
+        val screenX = maxLoc.x.toInt() + offsetX
+        val screenY = maxLoc.y.toInt() + offsetY
+
+        val elapsed = System.currentTimeMillis() - startTime
+        Log.d(TAG, "[grayMat] 匹配完成: 置信度=${String.format("%.4f", maxVal)}, " +
+                "屏幕坐标=($screenX, $screenY), 耗时=${elapsed}ms")
+
+        return MatchResult(
+            center = Point(screenX + templateBitmap.width / 2, screenY + templateBitmap.height / 2),
+            confidence = maxVal,
+            rect = org.opencv.core.Rect(screenX, screenY, templateBitmap.width, templateBitmap.height)
+        )
+    }
+
+    /**
      * 多目标匹配：找到所有超过阈值的匹配
      */
     fun matchTemplateMulti(

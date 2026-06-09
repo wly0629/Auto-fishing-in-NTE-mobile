@@ -10,6 +10,9 @@ import android.util.Log
 import kotlinx.coroutines.*
 import kotlin.math.abs
 import kotlin.math.min
+import org.opencv.core.Mat
+import org.opencv.imgproc.Imgproc
+import org.opencv.android.Utils
 
 /**
  * 实时屏幕脚本引擎 — 渐进式匹配 + 动态点击跟踪
@@ -107,7 +110,7 @@ class ClickScript(
         /** 所有元素的"附近"搜索偏移量（X/Y ± 此值），用于有缓存位置时的窄范围搜索 */
         private const val NEARBY_OFFSET = 2
         /** 移动速度（像素/毫秒），用于计算长按时间 = 距离 / 速度 */
-        private const val SPEED = 0.31
+        private const val SPEED = 0.3
 
         /** 跟踪超时（毫秒）*/
         private const val TRACKING_TIMEOUT_MS = 60_000L
@@ -198,7 +201,7 @@ class ClickScript(
     }
 
     /**
-     * 线程安全地捕获当前帧的深拷贝。
+     * 线程安全地捕获当前帧的深拷贝（供非热路径使用，匹配后需 recycle）。
      *
      * 注意：deepCopyBitmap 调用在 synchronized 块外部执行，
      * 避免在主线程 onFrameReceived 试图写入 latestFrame 时被锁阻塞。
@@ -207,6 +210,19 @@ class ClickScript(
     private fun captureFrame(): Bitmap? {
         val frame = synchronized(frameLock) { latestFrame }
         return frame?.let { if (it.isRecycled) null else deepCopyBitmap(it) }
+    }
+
+    /**
+     * 轻量级帧窥探（供 Step ③-1 热循环使用，不做深拷贝）。
+     *
+     * onFrameReceived 传入的 frame 已是 imageToBitmap 的独立深拷贝，
+     * 此处直接返回引用，不重复 deepCopyBitmap，避免每 50ms 额外 10MB 分配。
+     * 返回的 frame 是共享引用，调用方不得 recycle。
+     */
+    private fun peekFrame(): Bitmap? {
+        val frame = synchronized(frameLock) { latestFrame }
+        if (frame == null || frame.isRecycled) return null
+        return frame
     }
 
     /**
@@ -311,6 +327,73 @@ class ClickScript(
 
         return try {
             ImageMatcher.matchTemplate(preCapturedFrame, template, THRESHOLD_TARGET, searchRect, null)?.rect
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    // ══════════════════════════════════════════════
+    // 灰度 Mat 优化匹配（Step ③-1 热循环：单帧转灰一次，复用多次）
+    // ══════════════════════════════════════════════
+
+    /**
+     * 将 Bitmap 转换为灰度 Mat（用于单帧多次匹配优化，避免重复 bitmapToMat + cvtColor）
+     */
+    private fun bitmapToGrayMat(bitmap: Bitmap): Mat? {
+        return try {
+            val screenMat = Mat()
+            Utils.bitmapToMat(bitmap, screenMat)
+            val grayMat = Mat()
+            Imgproc.cvtColor(screenMat, grayMat, Imgproc.COLOR_RGBA2GRAY)
+            screenMat.release()
+            grayMat
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 使用灰度 Mat 查找 cursor（复用单帧灰度 Mat，避免 bitmapToMat + cvtColor）
+     */
+    private fun findCursorInAreaGray(area: Rect, grayMat: Mat): org.opencv.core.Rect? {
+        if (area.left >= area.right || area.top >= area.bottom) return null
+        val template = loadTemplate("step3cursor.jpg") ?: return null
+        return try {
+            ImageMatcher.matchTemplate(grayMat, template, THRESHOLD_CURSOR, area, null)?.rect
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 使用灰度 Mat 查找 target（复用单帧灰度 Mat，避免 bitmapToMat + cvtColor）
+     */
+    private fun findTargetInSideGray(
+        isLeft: Boolean,
+        cursorRect: org.opencv.core.Rect,
+        searchArea: Rect,
+        grayMat: Mat
+    ): org.opencv.core.Rect? {
+        val targetL = searchArea.left
+        val targetR = searchArea.right
+
+        val actualL: Int
+        val actualR: Int
+        if (isLeft) {
+            actualL = targetL
+            actualR = cursorRect.x
+        } else {
+            actualL = cursorRect.x + cursorRect.width
+            actualR = targetR
+        }
+
+        if (actualR - actualL <= 0 || searchArea.bottom - searchArea.top <= 0) return null
+        val searchRect = Rect(actualL, searchArea.top, actualR, searchArea.bottom)
+
+        val template = loadTemplate("step3target.jpg") ?: return null
+
+        return try {
+            ImageMatcher.matchTemplate(grayMat, template, THRESHOLD_TARGET, searchRect, null)?.rect
         } catch (e: Exception) {
             null
         }
@@ -483,13 +566,22 @@ class ClickScript(
                     // ══════════════════════════════════
 
                     // ★ 核心优化：每周期只捕获一帧，所有匹配复用同一帧
-                    //   refer 每 REFER_MATCH_INTERVAL 帧才匹配一次（~4fps），
-                    //   其余帧只做 cursor + target 匹配（~20fps）
-                    val cycleFrame = captureFrame()
+                    //   ★ 增强优化：帧转为灰度 Mat 一次，cursor+target 匹配直接复用灰度 Mat，
+                    //     避免 bitmapToMat + cvtColor 重复 3 次；使用 peekFrame 无需深拷贝（帧已独立）
+                    val cycleFrame = peekFrame()
 
                     if (cycleFrame != null) {
+                        // 帧转换为灰度 Mat 一次，后续 cursor+target 匹配复用
+                        val cycleGray = bitmapToGrayMat(cycleFrame)
+                        if (cycleGray == null) {
+                            // 转换失败，跳过本周期
+                            delayUntilCycleEnd(cycleStartMs, CYCLE_INTERVAL_STEP3_MS)
+                            continue
+                        }
+                        // cycleFrame 是共享引用，自然被 onFrameReceived 替换，不 recycle
+
                         try {
-                            // ── refer 匹配（每 N 帧执行一次） ──
+                            // ── refer 匹配（每 N 帧执行一次，复用 cycleFrame Bitmap） ──
                             var currentReferRect: org.opencv.core.Rect? = null
                             if (referMatchCycle % REFER_MATCH_INTERVAL == 0) {
                                 currentReferRect = findElementWithCache(
@@ -499,18 +591,13 @@ class ClickScript(
                                     defaultSearchArea = getReferDefaultArea(),
                                     preCapturedFrame = cycleFrame
                                 )
-                                // 🐛 修复：refer 匹配帧上没找到 → 清除缓存，触发切换到 ③-2
                                 if (currentReferRect == null) {
                                     cachedReferRect = null
                                 }
                             }
 
                             if (currentReferRect == null) {
-                                // 本周期没有新匹配 refer（落在非 refer 帧），或 refer 已消失
-                                // 非 refer 帧：使用缓存的 refer 区域，继续追踪
-                                // 但需要检查：如果上一次 refer 不在缓存中 → 本周期必须强匹配一次
                                 if (cachedReferRect == null) {
-                                    // 缓存都没了 → 必须立即匹配一次
                                     currentReferRect = findElementWithCache(
                                         templateName = "step3refer.jpg",
                                         threshold = THRESHOLD_REFER,
@@ -521,19 +608,15 @@ class ClickScript(
                                 }
 
                                 if (currentReferRect == null && cachedReferRect == null) {
-                                    // refer 真的消失了 → 切换到 ③-2
                                     log("refer 消失 → 切换到 step4 搜索")
                                     inReferTracking = false
                                     referMatchCycle = 0
                                     continue
                                 }
-                                // currentReferRect 为 null 但 cachedReferRect 还在 → 继续用缓存
                             }
 
-                            // ★ 递增 refer 帧计数器（提前到所有可能导致 continue 的操作之前）
                             referMatchCycle++
 
-                            // 计算 refer 搜索区域（仅计算一次，后续永久复用）
                             if (referSearchArea == null && currentReferRect != null) {
                                 referSearchArea = calculateReferSearchArea(
                                     currentReferRect.x + currentReferRect.width / 2,
@@ -544,41 +627,36 @@ class ClickScript(
                             }
 
                             val area = referSearchArea
-                            if (area == null) {
-                                log("⚠️ refer 搜索区域未初始化，等待...")
-                                continue
-                            }
-                            if (area.left >= area.right || area.top >= area.bottom) {
-                                log("⚠️ refer 搜索区域无效，等待...")
+                            if (area == null || area.left >= area.right || area.top >= area.bottom) {
+                                if (area == null) log("⚠️ refer 搜索区域未初始化，等待...")
+                                else log("⚠️ refer 搜索区域无效，等待...")
                                 continue
                             }
 
-                            // 查找 cursor（复用周期帧）
-                            val cursorRect = findCursorInArea(area, cycleFrame)
+                            // 查找 cursor（复用灰度 Mat，避免 bitmapToMat + cvtColor）
+                            val cursorRect = findCursorInAreaGray(area, cycleGray)
                             if (cursorRect == null) {
                                 continue
                             }
 
                             val cursorCenterX = cursorRect.x + cursorRect.width / 2
 
-                            // 检查 cursor 左侧是否有 target（复用周期帧）
-                            val leftTarget = findTargetInSide(
+                            // 检查两侧 target（复用灰度 Mat）
+                            val leftTarget = findTargetInSideGray(
                                 isLeft = true,
                                 cursorRect = cursorRect,
                                 searchArea = area,
-                                preCapturedFrame = cycleFrame
+                                grayMat = cycleGray
                             )
-                            // 检查 cursor 右侧是否有 target（复用周期帧）
-                            val rightTarget = findTargetInSide(
+                            val rightTarget = findTargetInSideGray(
                                 isLeft = false,
                                 cursorRect = cursorRect,
                                 searchArea = area,
-                                preCapturedFrame = cycleFrame
+                                grayMat = cycleGray
                             )
 
                             when {
                                 leftTarget != null && rightTarget != null -> {
-                                    // 左右都有 target → 存储位置，不做操作
                                     lastLeftTargetPos = Point(
                                         leftTarget.x + leftTarget.width / 2,
                                         leftTarget.y + leftTarget.height / 2
@@ -590,12 +668,11 @@ class ClickScript(
                                     log("⏸ 左右都有 target，等待...")
                                 }
                                 rightTarget != null -> {
-                                    // 只有右侧有 target → 长按 right 按钮
                                     val rightTargetCenterX = rightTarget.x + rightTarget.width / 2
                                     val leftTargetX = lastLeftTargetPos?.x
                                         ?: (area.left + cursorCenterX) / 2
                                     val holdMs = abs(cursorCenterX - leftTargetX) / SPEED
-                                    val holdMsLong = holdMs.toLong().coerceAtLeast(70L)
+                                    val holdMsLong = holdMs.toLong().coerceIn(70L, 500L)
                                     log("🔴 仅右侧有 target → 长按 RIGHT ${holdMsLong}ms " +
                                         "(cursor=$cursorCenterX, leftTarget=$leftTargetX)")
                                     cachedRightPos?.let { doLongClick(it.x, it.y, holdMsLong) }
@@ -607,12 +684,11 @@ class ClickScript(
                                     )
                                 }
                                 leftTarget != null -> {
-                                    // 只有左侧有 target → 长按 left 按钮
                                     val leftTargetCenterX = leftTarget.x + leftTarget.width / 2
                                     val rightTargetX = lastRightTargetPos?.x
                                         ?: (cursorCenterX + area.right) / 2
                                     val holdMs = abs(rightTargetX - cursorCenterX) / SPEED
-                                    val holdMsLong = holdMs.toLong().coerceAtLeast(70L)
+                                    val holdMsLong = holdMs.toLong().coerceIn(70L, 500L)
                                     log("🔴 仅左侧有 target → 长按 LEFT ${holdMsLong}ms " +
                                         "(cursor=$cursorCenterX, rightTarget=$rightTargetX)")
                                     cachedLeftPos?.let { doLongClick(it.x, it.y, holdMsLong) }
@@ -631,8 +707,8 @@ class ClickScript(
                             }
 
                         } finally {
-                            // 帧在该周期所有匹配使用完毕后回收，不再被引用
-                            cycleFrame.recycle()
+                            // 释放灰度 Mat（每次周期新建，此处释放）
+                            cycleGray.release()
                         }
                     }
 
