@@ -4,8 +4,8 @@
 >
 > **免 Root、免 ADB、免 PC**，纯手机端运行。
 
-[![GitHub release](https://img.shields.io/github/v/release/wly0629/yihuan-autofish-android)](https://github.com/wly0629/yihuan-autofish-android/releases)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![GitHub 发布](https://img.shields.io/github/v/release/wly0629/yihuan-autofish-android)](https://github.com/wly0629/yihuan-autofish-android/releases)
+[![许可证](https://img.shields.io/badge/license-MIT-blue)](许可证)
 
 ---
 
@@ -18,8 +18,6 @@
    - **屏幕录制权限** → 授权后开始采集画面
 3. 打开异环手游，进入钓鱼界面
 4. 点击悬浮窗的 **▶ 运行** 按钮，自动开始钓鱼循环
-
-> 💡 首次建议先打开「开发者模式」（主界面连续点击版本号 7 次），在测试页确认模板能正确匹配。
 
 ---
 
