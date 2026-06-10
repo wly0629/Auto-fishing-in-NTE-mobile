@@ -55,7 +55,7 @@ class ClickScript(
 
 
         /** cursor 模板匹配阈值 — cursor 图像干净，可设较高值 */
-        private const val THRESHOLD_CURSOR = 0.90
+        private const val THRESHOLD_CURSOR = 0.80
 
 
 
@@ -179,6 +179,8 @@ class ClickScript(
     private var isFirstLoop = true
     /** 跳过步骤①和②，直接进入步骤③跟踪（用于检测阶段找到refer时） */
     private var enterTrackingDirectly = false
+    /** cursor 未找到时交替按 right/left 的方向标志 */
+    private var cursorNotFoundAlternate = false
 
     // Template cache
     private val templateCache = mutableMapOf<String, Bitmap>()
@@ -627,7 +629,7 @@ class ClickScript(
             if (!isRunning) break
             setPhase("② 循环点击 step1 等待 refer")
 
-            var referRect: org.opencv.core.Rect?
+            var referRect: org.opencv.core.Rect? = null
             var step1ClickCount = 0
 
             // 如果前1秒内已找到refer，跳过步骤②的循环
@@ -772,12 +774,17 @@ class ClickScript(
                             // 查找 cursor（复用灰度 Mat，避免 bitmapToMat + cvtColor）
                             val cursorRect = findCursorInAreaGray(area, cycleGray)
                             if (cursorRect == null) {
-                                // cursor 未找到 → 短按 left 或 right 后重新查找
-                                log("⚠️ cursor 未找到 → 短按按钮后重新查找")
-                                if (cachedRightPos != null) {
-                                    doClick(cachedRightPos!!.x, cachedRightPos!!.y)
+                                // cursor 未找到 → 交替 short tap right/left（≤20ms），避免卡边一直按一个方向
+                                cursorNotFoundAlternate = !cursorNotFoundAlternate
+                                log("⚠️ cursor 未找到 → 交替短按按钮(≤20ms) ${if (cursorNotFoundAlternate) "RIGHT" else "LEFT"}")
+                                if (cursorNotFoundAlternate && cachedRightPos != null) {
+                                    doClickShort(cachedRightPos!!.x, cachedRightPos!!.y)
+                                } else if (!cursorNotFoundAlternate && cachedLeftPos != null) {
+                                    doClickShort(cachedLeftPos!!.x, cachedLeftPos!!.y)
+                                } else if (cachedRightPos != null) {
+                                    doClickShort(cachedRightPos!!.x, cachedRightPos!!.y)
                                 } else if (cachedLeftPos != null) {
-                                    doClick(cachedLeftPos!!.x, cachedLeftPos!!.y)
+                                    doClickShort(cachedLeftPos!!.x, cachedLeftPos!!.y)
                                 }
                                 continue
                             }
@@ -933,11 +940,16 @@ class ClickScript(
                                 else -> {
                                     lastLeftTargetPos = null
                                     lastRightTargetPos = null
-                                    log("两侧都无 target → 短按按钮后重新查找 cursor")
-                                    if (cachedRightPos != null) {
-                                        doClick(cachedRightPos!!.x, cachedRightPos!!.y)
+                                    cursorNotFoundAlternate = !cursorNotFoundAlternate
+                                    log("两侧都无 target → 交替短按按钮(≤20ms) ${if (cursorNotFoundAlternate) "RIGHT" else "LEFT"}")
+                                    if (cursorNotFoundAlternate && cachedRightPos != null) {
+                                        doClickShort(cachedRightPos!!.x, cachedRightPos!!.y)
+                                    } else if (!cursorNotFoundAlternate && cachedLeftPos != null) {
+                                        doClickShort(cachedLeftPos!!.x, cachedLeftPos!!.y)
+                                    } else if (cachedRightPos != null) {
+                                        doClickShort(cachedRightPos!!.x, cachedRightPos!!.y)
                                     } else if (cachedLeftPos != null) {
-                                        doClick(cachedLeftPos!!.x, cachedLeftPos!!.y)
+                                        doClickShort(cachedLeftPos!!.x, cachedLeftPos!!.y)
                                     }
                                 }
                             }
@@ -1400,6 +1412,17 @@ class ClickScript(
     private fun doLongClick(x: Int, y: Int, durationMs: Long) {
         if (AutoClickAccessibilityService.isConnected) {
             AutoClickAccessibilityService.performLongClick(x, y, durationMs)
+        } else {
+            log("⚠️ 无障碍服务未连接")
+        }
+    }
+
+    /**
+     * 短按按钮（≤20ms），用于 cursor 未找到或两侧无 target 时的触发性点击
+     */
+    private fun doClickShort(x: Int, y: Int) {
+        if (AutoClickAccessibilityService.isConnected) {
+            AutoClickAccessibilityService.performLongClick(x, y, 20L)
         } else {
             log("⚠️ 无障碍服务未连接")
         }

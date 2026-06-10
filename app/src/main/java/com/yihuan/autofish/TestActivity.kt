@@ -16,6 +16,7 @@ import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
+import com.yihuan.autofish.AppLogger
 import kotlinx.coroutines.*
 import kotlin.math.abs
 import java.io.File
@@ -31,23 +32,24 @@ class TestActivity : AppCompatActivity() {
 
     companion object {
         const val TAG = "TestActivity"
-        const val HIGH_THRESHOLD = 0.90
-        const val CURSOR_THRESHOLD = 0.90
-        const val TARGET_THRESHOLD = 0.90
+        const val HIGH_THRESHOLD = 0.01
+        const val CURSOR_THRESHOLD = 0.01
+        const val TARGET_THRESHOLD = 0.01
     }
 
-    // Page definitions: file name + match logic type
+    // Page definitions: file name + match logic type + step number
     private val pages = listOf(
-        TestPage("step1example1.jpg", MatchType.STEP1),
-        TestPage("step3example1.jpg", MatchType.STEP3),
-        TestPage("step4example1.jpg", MatchType.STEP4)
+        TestPage("step1example1.jpg", MatchType.STEP1, 1),
+        TestPage("step3example1.jpg", MatchType.STEP3, 3),
+        TestPage("step4example1.jpg", MatchType.STEP4, 4)
     )
 
     enum class MatchType { STEP1, STEP3, STEP4 }
 
     data class TestPage(
         val exampleFile: String,
-        val matchType: MatchType
+        val matchType: MatchType,
+        val stepNumber: Int
     ) {
         val pageTitle: String get() = when (matchType) {
             MatchType.STEP1 -> "Step 1"
@@ -72,8 +74,26 @@ class TestActivity : AppCompatActivity() {
             or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         )
 
+        // 读取 intent 中传入的测试步骤，无则默认全选
+        val testSteps = intent?.getIntegerArrayListExtra("test_steps")?.toSet()
+            ?: setOf(1, 3, 4)
+        val filteredPages = pages.filter { testSteps.contains(it.stepNumber) }
+
         viewPager = findViewById(R.id.testViewPager)
-        viewPager.adapter = TestPagerAdapter(pages)
+        viewPager.adapter = TestPagerAdapter(if (filteredPages.isEmpty()) pages else filteredPages)
+
+        Log.i(TAG, "测试步骤: ${filteredPages.map { it.pageTitle }}, 共${filteredPages.size}页")
+        AppLogger.log("🧪 测试页面已打开: ${filteredPages.size}步")
+
+        // 修复 ViewPager2 默认滑动越界问题
+        viewPager.offscreenPageLimit = ViewPager2.OFFSCREEN_PAGE_LIMIT_DEFAULT
+
+        // 阻止 ViewPager2 在滑动到边界时触发 Activity finish
+        viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                Log.i(TAG, "切换到第 ${position + 1}/${filteredPages.size} 页")
+            }
+        })
     }
 
     override fun onDestroy() {

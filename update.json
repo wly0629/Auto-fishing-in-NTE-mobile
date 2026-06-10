@@ -2,7 +2,7 @@
   "versionCode": 7,
   "versionName": "1.0.7",
   "apkUrl": "https://github.com/wly0629/yihuan-autofish-android/releases/download/v1.0.7/yihuan-autofish_1.0.7.apk",
-  "size": 25424705,
-  "updateContent": "v1.0.7 更新内容：\n1. Step3 光标追踪速度回调：降低 overshoot 后适当提速，跟踪更跟手\n2. 异常处理优化：cursor 找不到或左右无 target 先短按按钮再重找\n3. 智能检测阶段：脚本启动自动识别在 step1/refer/step4 并进入对应阶段\n4. 等待优化：step1 后前1秒每200ms检查refer，出现即跳过步骤②直接跟踪\n5. 无障碍指示灯修复：主页面刷新实时更新无障碍权限指示灯状态",
-  "updateLog": "v1.0.7 更新内容：\n\n1. Step3 光标追踪速度回调\n   - 右按：coerceIn(3L, 35L)→coerceIn(5L, 40L)\n   - 左按：coerceIn(5L, 35L)→coerceIn(8L, 40L)\n   - 在减少 overshoot 的同时适当回拨速度，跟踪更稳定\n\n2. 异常处理优化\n   - cursor 未找到：先短按一次按钮再重新找 cursor\n   - 两侧 target 都消失：先短按一次按钮再重新找\n   - 减少无效重试，提高稳定性\n\n3. 智能检测脚本启动阶段\n   - 启动时先检测游戏处于 step1/refer/step4 哪一步\n   - 在 step4 → 自动进入恢复循环（恢复后计数一次）\n   - 在 refer → 跳过步骤①和②，直接进入跟踪阶段\n   - 在 step1 → 缓存位置，正常开始主循环\n   - 均未检测到 → 从头找 step1\n\n4. 等待优化\n   - step1 点击后等待4秒\n   - 前1秒内每200ms检查refer是否出现\n   - 出现则直接进入跟踪阶段，跳过步骤②\n   - 未出现则正常继续步骤②\n\n5. 无障碍指示灯修复\n   - 优先检查 AutoClickAccessibilityService.isConnected\n   - onResume 延迟200ms刷新确保权限状态传播\n   - 统一 refreshPermissionIndicators() 方法\n\n6. 主循环计数优化\n   - 检测阶段找到 refer 后直接跟踪，钓到鱼后通过 step4 正常计数\n   - 找到 step4 恢复后也正常计数"
+  "apkSize": 25500000,
+  "updateContent": "支持作者、日志面板、Cursor 交替按键、测试无阈值限制",
+  "updateLog": "v1.0.7 更新内容：\n  ✨ 新增「支持作者」功能（微信/支付宝收款码）\n  📋 运行日志面板（开发者模式可见）\n  🎯 Cursor 匹配阈值降至 0.80\n  🔄 Cursor 未找到时交替按 right/left\n  🧪 测试页显示最高匹配度（不限阈值）\n  🖼️ 导入图片支持 step4 + 自由选步骤\n  🧪 绘制测试多步选择 + 左右滑动切换\n  📱 开发者模式：点击 7 次版本号 + 振动反馈\n  🐛 修复左滑闪退 bug\n  🐛 修复高频按 right 卡边问题"
 }

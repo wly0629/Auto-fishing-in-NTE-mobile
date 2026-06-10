@@ -370,8 +370,76 @@
 
         </androidx.cardview.widget.CardView>
 
+        <!-- ========== 日志查看栏（开发模式可见） ========== -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardLogPanel"
+            android:layout_width="match_parent"
+            android:layout_height="240dp"
+            android:visibility="gone"
+            android:layout_marginBottom="14dp"
+            app:cardBackgroundColor="#111122"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="📋 运行日志"
+                        android:textColor="#E0E0E0"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvClearLog"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="清空"
+                        android:textColor="#FF9800"
+                        android:textSize="13sp"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:padding="4dp" />
+
+                </LinearLayout>
+
+                <androidx.core.widget.NestedScrollView
+                    android:id="@+id/scrollLogContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:layout_marginTop="4dp">
+
+                    <TextView
+                        android:id="@+id/tvLogContent"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="#A0B0C0"
+                        android:textSize="11sp"
+                        android:fontFamily="monospace"
+                        android:lineSpacingExtra="2dp" />
+
+                </androidx.core.widget.NestedScrollView>
+
+            </LinearLayout>
+
+        </androidx.cardview.widget.CardView>
+
         <!-- ========== 两个测试控件（等宽并列） ========== -->
         <LinearLayout
+            android:id="@+id/layoutTestControls"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
@@ -506,6 +574,76 @@
             </androidx.cardview.widget.CardView>
 
         </LinearLayout>
+
+        <!-- ========== 支持作者 ========== -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardSupportAuthor"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp"
+            app:cardBackgroundColor="#16213E"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="4dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:padding="18dp">
+
+                <FrameLayout
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="@drawable/circle_indicator"
+                    android:backgroundTint="#32325D">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:text="❤️"
+                        android:textSize="26sp"
+                        android:gravity="center" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="14dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="支持作者"
+                        android:textColor="#E0E0E0"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="请年糕吃小鱼干 🐟"
+                        android:textColor="#808090"
+                        android:textSize="13sp"
+                        android:layout_marginTop="2dp" />
+
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="›"
+                    android:textColor="#505060"
+                    android:textSize="24sp"
+                    android:layout_marginStart="8dp" />
+
+            </LinearLayout>
+
+        </androidx.cardview.widget.CardView>
 
         <!-- 底部间距 -->
         <View

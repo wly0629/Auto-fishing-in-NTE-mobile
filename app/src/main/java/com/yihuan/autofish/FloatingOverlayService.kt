@@ -413,6 +413,7 @@ class FloatingOverlayService : Service() {
                     }
                     override fun onLog(message: String) {
                         Log.d(TAG, message)
+                        AppLogger.log(message)
                     }
                     override fun onFishCountUpdate(count: Int) {
                         fishCount = count

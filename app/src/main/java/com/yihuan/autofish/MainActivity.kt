@@ -5,15 +5,18 @@ import android.app.AppOpsManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.util.Log
-import android.view.View
-import com.yihuan.autofish.BuildConfig
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.provider.Settings
+import android.util.Log
+import android.view.View
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.widget.SwitchCompat
@@ -21,6 +24,8 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.yihuan.autofish.BuildConfig
+import com.yihuan.autofish.ClickScript
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -56,7 +61,7 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            pickStep1Image()
+            showImportStepSelector()
         } else {
             Toast.makeText(this, "❌ 相册读取权限被拒绝，无法导入图片", Toast.LENGTH_LONG).show()
         }
@@ -116,27 +121,62 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchScreenRecord: SwitchCompat
     private lateinit var tvAdbHint: android.widget.TextView
     private lateinit var swipeRefresh: SwipeRefreshLayout
+    private lateinit var tvLogContent: TextView
+    private lateinit var cardLogPanel: View
+    private lateinit var layoutTestControls: View
 
     // 开发者模式：连续点击版本号7次进入
     private var devModeTapCount = 0
     private var devModeEnabled = false
 
-    // 图片选择启动器（分两步：先选 step1，再选 step3）
-    private var pendingStep = 1 // 1=选step1图, 2=选step3图
+    // 等待导入的步骤列表（可多选）
+    private var pendingImportSteps = mutableListOf<Int>() // 1=step1, 3=step3, 4=step4
+    // 图片选择启动器 — 单个图片
+    private var currentImportStep = 0 // 当前正在导入的步骤
     private val imagePickerLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            handleImageSelected(uri)
+            handleImportImage(uri)
         } else {
             Toast.makeText(this, "已取消选择", Toast.LENGTH_SHORT).show()
-            pendingStep = 1
+            currentImportStep = 0
         }
     }
+
+    // 用于日志滚动的 Handler
+    private val logHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // 日志面板引用
+        cardLogPanel = findViewById(R.id.cardLogPanel)
+        layoutTestControls = findViewById(R.id.layoutTestControls)
+        tvLogContent = findViewById(R.id.tvLogContent)
+        findViewById<View>(R.id.tvClearLog).setOnClickListener {
+            AppLogger.clear()
+        }
+
+        // 注册日志监听器
+        AppLogger.listener = { text ->
+            logHandler.post {
+                tvLogContent.text = text
+            }
+        }
+
+        // 日志面板的 NestedScrollView 触摸拦截 — 阻止外层 SwipeRefreshLayout/ScrollView 拦截
+        val scrollLog = findViewById<androidx.core.widget.NestedScrollView>(R.id.scrollLogContent)
+        scrollLog.setOnTouchListener { _, event ->
+            if (event.action == android.view.MotionEvent.ACTION_DOWN ||
+                event.action == android.view.MotionEvent.ACTION_MOVE
+            ) {
+                // 阻止外层 SwipeRefreshLayout 拦截滑动
+                swipeRefresh.requestDisallowInterceptTouchEvent(true)
+            }
+            false
+        }
 
         setupCards()
 
@@ -144,15 +184,19 @@ class MainActivity : AppCompatActivity() {
         val tvVersion = findViewById<android.widget.TextView>(R.id.tvVersion)
         tvVersion.text = "v${BuildConfig.VERSION_NAME}"
 
-        // 版本号点击 → 检查更新
+        // 版本号点击 → 检查更新 + 累计点击进入开发者模式
         tvVersion.setOnClickListener {
+            devModeTapCount++
+            if (devModeTapCount < 7) {
+                // 震一下提示进度
+                vibrateShort()
+                Log.d(TAG, "devModeTapCount=$devModeTapCount")
+            } else {
+                devModeTapCount = 0
+                toggleDevTools()
+            }
+            // 始终检查更新
             checkUpdateWithToast()
-        }
-
-        // 版本号长按 → 切换开发者模式
-        tvVersion.setOnLongClickListener {
-            toggleDevTools()
-            true
         }
 
         // 设置悬浮窗录屏权限回调 — 点击运行按钮时通过此回调弹出录屏授权界面
@@ -234,16 +278,20 @@ class MainActivity : AppCompatActivity() {
             requestImagePermissionAndPick()
         }
 
-        // 控件 5: 绘制测试（原「测试」，查看图像识别匹配区域）
+        // 控件 5: 绘制测试（查看图像识别匹配区域）
         findViewById<androidx.cardview.widget.CardView>(R.id.cardTest).setOnClickListener {
-            val intent = Intent(this, TestActivity::class.java)
-            startActivity(intent)
+            showTestStepSelector()
         }
 
         // 控件 6: 识别点击测试（验证无障碍点击坐标）
         findViewById<androidx.cardview.widget.CardView>(R.id.cardClickTest).setOnClickListener {
             val intent = Intent(this, ClickTestActivity::class.java)
             startActivity(intent)
+        }
+
+        // 控件 7: 支持作者（❤️）
+        findViewById<androidx.cardview.widget.CardView>(R.id.cardSupportAuthor).setOnClickListener {
+            showSupportAuthorDialog()
         }
     }
 
@@ -309,7 +357,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 申请相册权限，成功后开始两步选图流程
+     * 申请相册权限，成功后弹出多选步骤选择框
      */
     private fun requestImagePermissionAndPick() {
         val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -319,11 +367,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
-            pickStep1Image()
+            showImportStepSelector()
         } else if (shouldShowRequestPermissionRationale(permission)) {
             AlertDialog.Builder(this)
                 .setTitle("需要读取相册")
-                .setMessage("请选择两张钓鱼界面的示例图片，用于替换内置模板进行匹配测试。")
+                .setMessage("请选择钓鱼界面的示例图片，用于替换内置模板进行匹配测试。")
                 .setPositiveButton("去授权") { _, _ ->
                     permissionLauncher.launch(permission)
                 }
@@ -335,69 +383,83 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 第一步：选择 step1 示例图片
+     * 弹出选择框：选择要导入哪几步的图片（支持多选）
      */
-    private fun pickStep1Image() {
-        pendingStep = 1
+    private fun showImportStepSelector() {
+        val stepNames = arrayOf("step1（点击钓鱼）", "step3（跟踪条）", "step4（收杆成功）")
+        val checked = booleanArrayOf(true, true, false)
+
         AlertDialog.Builder(this)
-            .setTitle("选择 step1 示例图（第1张/共2张）")
-            .setMessage("请选择一张钓鱼界面的示例图片，将用于替换内置的 step1 模板。")
-            .setPositiveButton("选择图片") { _, _ ->
-                imagePickerLauncher.launch("image/*")
+            .setTitle("选择要导入的步骤图片")
+            .setMultiChoiceItems(stepNames, checked) { _, which, isChecked ->
+                checked[which] = isChecked
+            }
+            .setPositiveButton("开始导入") { _, _ ->
+                pendingImportSteps.clear()
+                if (checked[0]) pendingImportSteps.add(1)
+                if (checked[1]) pendingImportSteps.add(3)
+                if (checked[2]) pendingImportSteps.add(4)
+
+                if (pendingImportSteps.isEmpty()) {
+                    Toast.makeText(this, "请至少选择一步", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                AppLogger.log("📸 开始导入 ${pendingImportSteps.size} 张图片: ${pendingImportSteps.joinToString(", ") { "step${it}example" }}")
+                startNextImport()
             }
             .setNegativeButton("取消", null)
             .show()
     }
 
     /**
-     * 第二步：选择 step3 示例图片
+     * 开始导入下一张图片
      */
-    private fun pickStep3Image() {
-        pendingStep = 2
+    private fun startNextImport() {
+        if (pendingImportSteps.isEmpty()) {
+            AppLogger.log("✅ 全部图片导入完成")
+            Toast.makeText(this, "✅ 全部图片导入完成", Toast.LENGTH_SHORT).show()
+            return
+        }
+        currentImportStep = pendingImportSteps.removeAt(0)
+        val stepName = when (currentImportStep) {
+            1 -> "step1（点击钓鱼）"
+            3 -> "step3（跟踪条）"
+            4 -> "step4（收杆成功）"
+            else -> "step$currentImportStep"
+        }
+        val remaining = pendingImportSteps.size + 1
         AlertDialog.Builder(this)
-            .setTitle("选择 step3 示例图（第2张/共2张）")
-            .setMessage("请再选择一张钓鱼界面的示例图片，将用于替换内置的 step3 模板。")
+            .setTitle("选择 $stepName 示例图（还剩 $remaining 张）")
+            .setMessage("请选择一张钓鱼界面的示例图片，将用于替换内置的 $stepName 模板。")
             .setPositiveButton("选择图片") { _, _ ->
                 imagePickerLauncher.launch("image/*")
             }
-            .setNegativeButton("取消") { _, _ -> pendingStep = 1 }
+            .setNegativeButton("取消") { _, _ ->
+                currentImportStep = 0
+                AppLogger.log("❌ 已取消导入")
+            }
             .show()
     }
 
     /**
-     * 处理选中的图片：按顺序保存为 step1example1.jpg / step3example1.jpg
+     * 处理选中的图片：按步骤保存
      */
-    private fun handleImageSelected(uri: Uri) {
+    private fun handleImportImage(uri: Uri) {
         try {
-            when (pendingStep) {
-                1 -> {
-                    // 保存为 step1example1.jpg
-                    val file = File(filesDir, "step1example1.jpg")
-                    contentResolver.openInputStream(uri)?.use { input ->
-                        FileOutputStream(file).use { output -> input.copyTo(output) }
-                    }
-                    Toast.makeText(this, "✅ step1 示例图已保存", Toast.LENGTH_SHORT).show()
-
-                    // 延迟一下再弹出第二步对话框
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        pickStep3Image()
-                    }, 500)
-                }
-
-                2 -> {
-                    // 保存为 step3example1.jpg
-                    val file = File(filesDir, "step3example1.jpg")
-                    contentResolver.openInputStream(uri)?.use { input ->
-                        FileOutputStream(file).use { output -> input.copyTo(output) }
-                    }
-                    Toast.makeText(this, "✅ step3 示例图已保存，正在打开测试页面…", Toast.LENGTH_SHORT).show()
-                    pendingStep = 1
-
-                    // 启动测试页面
-                    val intent = Intent(this, TestActivity::class.java)
-                    startActivity(intent)
-                }
+            if (currentImportStep == 0) return
+            val fileName = "step${currentImportStep}example1.jpg"
+            val file = File(filesDir, fileName)
+            contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(file).use { output -> input.copyTo(output) }
             }
+            AppLogger.log("✅ step${currentImportStep} 示例图已保存")
+            Toast.makeText(this, "✅ step${currentImportStep} 示例图已保存", Toast.LENGTH_SHORT).show()
+            currentImportStep = 0
+
+            // 继续导入剩余图片
+            Handler(Looper.getMainLooper()).postDelayed({
+                startNextImport()
+            }, 300)
         } catch (e: Exception) {
             Toast.makeText(this, "❌ 保存图片失败: ${e.message}", Toast.LENGTH_LONG).show()
             Log.e(TAG, "save image failed", e)
@@ -438,6 +500,39 @@ class MainActivity : AppCompatActivity() {
                 }
             }, 500)
         }
+    }
+
+    /**
+     * 显示绘制测试步骤选择器（多选，支持选择 1~3 步）
+     */
+    private fun showTestStepSelector() {
+        val stepNames = arrayOf("step1（点击钓鱼）", "step3（跟踪条）", "step4（收杆成功）")
+        val checked = booleanArrayOf(true, true, true)
+
+        AlertDialog.Builder(this)
+            .setTitle("选择要测试的步骤")
+            .setMessage("选择一步或多步进行匹配测试，多步可左右滑动切换")
+            .setMultiChoiceItems(stepNames, checked) { _, which, isChecked ->
+                checked[which] = isChecked
+            }
+            .setPositiveButton("开始测试") { _, _ ->
+                val selectedSteps = mutableListOf<Int>()
+                if (checked[0]) selectedSteps.add(1)
+                if (checked[1]) selectedSteps.add(3)
+                if (checked[2]) selectedSteps.add(4)
+
+                if (selectedSteps.isEmpty()) {
+                    Toast.makeText(this, "请至少选择一步", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+
+                AppLogger.log("🧪 开始绘制测试（${selectedSteps.size} 步）")
+                val intent = Intent(this, TestActivity::class.java)
+                intent.putIntegerArrayListExtra("test_steps", ArrayList(selectedSteps))
+                startActivity(intent)
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     /**
@@ -552,24 +647,93 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 切换开发者模式：显示/隐藏测试控件
+     * 切换开发者模式：显示/隐藏测试控件和日志面板
      */
     private fun toggleDevTools() {
-        devModeTapCount++
-        if (devModeTapCount >= 7) {
-            devModeEnabled = !devModeEnabled
-            devModeTapCount = 0
-            val visibility = if (devModeEnabled) View.VISIBLE else View.GONE
-            // 导入图片控件
-            findViewById<View>(R.id.cardImportImage)?.visibility = visibility
-            // 绘制测试 + 识别点击的父容器（无 id，通过子控件寻找 parent）
-            findViewById<View>(R.id.cardTest)?.parent?.let { parent ->
-                if (parent is View) {
-                    parent.visibility = visibility
-                }
+        devModeEnabled = !devModeEnabled
+        val visibility = if (devModeEnabled) View.VISIBLE else View.GONE
+        // 导入图片控件
+        findViewById<View>(R.id.cardImportImage)?.visibility = visibility
+        // 绘制测试 + 识别点击的父容器
+        layoutTestControls.visibility = visibility
+        // 日志面板
+        cardLogPanel.visibility = visibility
+
+        if (devModeEnabled) {
+            vibrateShort()
+            AppLogger.log("🔧 开发者模式已开启")
+            Toast.makeText(this, "🔧 开发者模式已开启", Toast.LENGTH_SHORT).show()
+        } else {
+            AppLogger.log("🔒 开发者模式已关闭")
+            Toast.makeText(this, "🔒 开发者模式已关闭", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 短促振动反馈（Android 8+）
+     */
+    private fun vibrateShort() {
+        try {
+            val vibrator: Vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vm = getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                vm.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(VIBRATOR_SERVICE) as Vibrator
             }
-            val msg = if (devModeEnabled) "🔧 开发者模式已开启" else "🔒 开发者模式已关闭"
-            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE))
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "振动反馈失败", e)
+        }
+    }
+
+    /**
+     * 显示支持作者对话框 — 点击后选择微信或支付宝收款码
+     */
+    private fun showSupportAuthorDialog() {
+        val options = arrayOf("💚 微信收款", "💙 支付宝收款")
+
+        AlertDialog.Builder(this)
+            .setTitle("❤️ 支持作者")
+            .setMessage("如果这个工具帮到了你，欢迎请年糕吃小鱼干 🐟")
+            .setItems(options) { _, which ->
+                val qrName = if (which == 0) "wechat_qr.png" else "alipay_qr.png"
+                showQrFullScreen(qrName, if (which == 0) "微信收款" else "支付宝收款")
+            }
+            .setNegativeButton("下次一定", null)
+            .show()
+    }
+
+    /**
+     * 全屏显示收款码图片
+     */
+    private fun showQrFullScreen(qrFileName: String, title: String) {
+        try {
+            val stream = assets.open("${ClickScript.TEMPLATE_DIR}/$qrFileName")
+            val bmp = android.graphics.BitmapFactory.decodeStream(stream)
+            stream.close()
+
+            if (bmp == null) {
+                Toast.makeText(this, "❌ 加载二维码失败", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val imageView = android.widget.ImageView(this)
+            imageView.setImageBitmap(bmp)
+            imageView.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            imageView.setBackgroundColor(android.graphics.Color.parseColor("#FFFFFF"))
+            imageView.setOnClickListener { /* tap to dismiss handled by dialog */ }
+
+            AlertDialog.Builder(this)
+                .setTitle("❤️ $title")
+                .setView(imageView)
+                .setPositiveButton("关闭", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "加载二维码失败: $qrFileName", e)
+            Toast.makeText(this, "❌ 加载二维码失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
