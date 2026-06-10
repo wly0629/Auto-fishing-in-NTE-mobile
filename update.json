@@ -1,8 +1,8 @@
 {
-  "versionCode": 6,
-  "versionName": "1.0.6",
-  "apkUrl": "https://github.com/wly0629/yihuan-autofish-android/releases/download/v1.0.6/yihuan-autofish_1.0.6.apk",
+  "versionCode": 7,
+  "versionName": "1.0.7",
+  "apkUrl": "https://github.com/wly0629/yihuan-autofish-android/releases/download/v1.0.7/yihuan-autofish_1.0.7.apk",
   "size": 25424705,
-  "updateContent": "v1.0.6 更新内容：\n1. Step3 光标追踪优化：降低长按脉冲上下限（右按3~35ms/左按5~35ms），减少overshoot\n2. 开发者模式：长按版本号7次切换，隐藏测试控件\n3. 自动开启悬浮窗：检测到权限后自动启动浮窗服务\n4. 版本号点击检查更新：已最新则Toast提示\n5. 下拉刷新：SwipeRefreshLayout刷新权限状态\n6. 文本优化：控件名称与说明文字修正",
-  "updateLog": "v1.0.6 更新内容：\n\n1. Step3 光标追踪优化\n   - 右按长按脉冲：coerceIn(5L, 50L)→coerceIn(3L, 35L)\n   - 左按长按脉冲：coerceIn(10L, 50L)→coerceIn(5L, 35L)\n   - 最大移动量 18px→12.6px，减少 overshoot\n\n2. 开发者模式\n   - 长按版本号 v1.0.6 约7次切换隐藏的测试控件（导入图片/绘制测试/识别点击）\n   - 普通用户界面简洁，仅显示功能控件\n\n3. 自动开启悬浮窗\n   - onResume 时检测悬浮窗权限，已授权且服务未启动则自动启动\n\n4. 版本号点击检查更新\n   - 点击版本号检查远程 update.json\n   - 已是最新版则 Toast 提示\n   - 有新版本则弹出更新对话框\n\n5. 下拉刷新\n   - 主页增加 SwipeRefreshLayout，下拉刷新无障碍/悬浮窗/录屏权限状态\n\n6. 文本优化\n   - \"获取录屏权限\"→\"永久获取录屏权限\"\n   - \"用于永久获取录屏权限...\"→\"永久授予录屏权限，每次启动无需授权\"\n   - \"替换内置模板图片\"→\"替换测试所用模板图片\""
+  "updateContent": "v1.0.7 更新内容：\n1. Step3 光标追踪速度回调：降低 overshoot 后适当提速，跟踪更跟手\n2. 异常处理优化：cursor 找不到或左右无 target 先短按按钮再重找\n3. 智能检测阶段：脚本启动自动识别在 step1/refer/step4 并进入对应阶段\n4. 等待优化：step1 后前1秒每200ms检查refer，出现即跳过步骤②直接跟踪\n5. 无障碍指示灯修复：主页面刷新实时更新无障碍权限指示灯状态",
+  "updateLog": "v1.0.7 更新内容：\n\n1. Step3 光标追踪速度回调\n   - 右按：coerceIn(3L, 35L)→coerceIn(5L, 40L)\n   - 左按：coerceIn(5L, 35L)→coerceIn(8L, 40L)\n   - 在减少 overshoot 的同时适当回拨速度，跟踪更稳定\n\n2. 异常处理优化\n   - cursor 未找到：先短按一次按钮再重新找 cursor\n   - 两侧 target 都消失：先短按一次按钮再重新找\n   - 减少无效重试，提高稳定性\n\n3. 智能检测脚本启动阶段\n   - 启动时先检测游戏处于 step1/refer/step4 哪一步\n   - 在 step4 → 自动进入恢复循环（恢复后计数一次）\n   - 在 refer → 跳过步骤①和②，直接进入跟踪阶段\n   - 在 step1 → 缓存位置，正常开始主循环\n   - 均未检测到 → 从头找 step1\n\n4. 等待优化\n   - step1 点击后等待4秒\n   - 前1秒内每200ms检查refer是否出现\n   - 出现则直接进入跟踪阶段，跳过步骤②\n   - 未出现则正常继续步骤②\n\n5. 无障碍指示灯修复\n   - 优先检查 AutoClickAccessibilityService.isConnected\n   - onResume 延迟200ms刷新确保权限状态传播\n   - 统一 refreshPermissionIndicators() 方法\n\n6. 主循环计数优化\n   - 检测阶段找到 refer 后直接跟踪，钓到鱼后通过 step4 正常计数\n   - 找到 step4 恢复后也正常计数"
 }

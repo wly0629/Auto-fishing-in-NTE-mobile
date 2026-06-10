@@ -2,7 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
 }
 
-val apkVersionName = "1.0.6"
+val apkVersionName = "1.0.7"
 
 android {
     namespace = "com.yihuan.autofish"
@@ -16,7 +16,7 @@ android {
         applicationId = "com.yihuan.autofish"
         minSdk = 28
         targetSdk = 34
-        versionCode = 6
+        versionCode = 7
         versionName = apkVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

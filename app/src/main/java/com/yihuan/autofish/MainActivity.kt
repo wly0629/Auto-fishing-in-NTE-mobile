@@ -407,10 +407,10 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
 
-        // 更新无障碍和悬浮窗权限指示灯
-        updateIndicator(R.id.permIndicator1, isAccessibilityServiceEnabled())
-        updateIndicator(R.id.permIndicator2,
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this))
+        // 更新无障碍和悬浮窗权限指示灯（延迟200ms确保系统设置已同步）
+        myHandler.postDelayed({
+            refreshPermissionIndicators()
+        }, 200)
 
         // 更新录屏权限状态（开关只反映 ADB 授权状态）
         val prefs = getSharedPreferences("autoclicker", MODE_PRIVATE)
@@ -438,6 +438,15 @@ class MainActivity : AppCompatActivity() {
                 }
             }, 500)
         }
+    }
+
+    /**
+     * 刷新所有权限指示灯（无障碍 + 悬浮窗）
+     */
+    private fun refreshPermissionIndicators() {
+        updateIndicator(R.id.permIndicator1, isAccessibilityServiceEnabled())
+        updateIndicator(R.id.permIndicator2,
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this))
     }
 
     /**
@@ -568,25 +577,25 @@ class MainActivity : AppCompatActivity() {
      * 下拉刷新：重新检查所有权限状态
      */
     private fun refreshPermissionStatus() {
-        swipeRefresh.isRefreshing = true
-        // 更新无障碍和悬浮窗权限指示灯
-        updateIndicator(R.id.permIndicator1, isAccessibilityServiceEnabled())
-        updateIndicator(R.id.permIndicator2,
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this))
+        myHandler.postDelayed({
+            swipeRefresh.isRefreshing = true
+            // 更新无障碍和悬浮窗权限指示灯（延迟200ms确保系统设置已同步）
+            refreshPermissionIndicators()
 
-        // 更新录屏权限状态
-        val prefs = getSharedPreferences("autoclicker", MODE_PRIVATE)
-        val actualPermission = checkScreenCapturePermission()
-        if (actualPermission) {
-            prefs.edit().putBoolean("screen_capture_authorized", true).apply()
-            suppressSwitchCallback = true
-            switchScreenRecord.isChecked = true
-            suppressSwitchCallback = false
-        }
-        tvAdbHint.visibility = View.GONE
+            // 更新录屏权限状态
+            val prefs = getSharedPreferences("autoclicker", MODE_PRIVATE)
+            val actualPermission = checkScreenCapturePermission()
+            if (actualPermission) {
+                prefs.edit().putBoolean("screen_capture_authorized", true).apply()
+                suppressSwitchCallback = true
+                switchScreenRecord.isChecked = true
+                suppressSwitchCallback = false
+            }
+            tvAdbHint.visibility = View.GONE
 
-        Toast.makeText(this, "✅ 权限状态已刷新", Toast.LENGTH_SHORT).show()
-        swipeRefresh.isRefreshing = false
+            Toast.makeText(this, "✅ 权限状态已刷新", Toast.LENGTH_SHORT).show()
+            swipeRefresh.isRefreshing = false
+        }, 200)
     }
 
     /**
@@ -625,6 +634,9 @@ class MainActivity : AppCompatActivity() {
      * 检查无障碍服务是否已开启
      */
     private fun isAccessibilityServiceEnabled(): Boolean {
+        // 先检查服务是否已连接（最快最可靠）
+        if (AutoClickAccessibilityService.isConnected) return true
+        // 如果未连接，再查系统设置（用于服务刚开启但尚未连接时）
         val serviceName = "$packageName/${
             AutoClickAccessibilityService::class.java.canonicalName
         }"

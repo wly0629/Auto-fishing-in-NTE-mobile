@@ -177,6 +177,8 @@ class ClickScript(
 
     // 步骤状态标识
     private var isFirstLoop = true
+    /** 跳过步骤①和②，直接进入步骤③跟踪（用于检测阶段找到refer时） */
+    private var enterTrackingDirectly = false
 
     // Template cache
     private val templateCache = mutableMapOf<String, Bitmap>()
@@ -460,24 +462,120 @@ class ClickScript(
         // 运行时方向检测：非横屏则等待（最多10秒），超时退出
         if (!waitForLandscapeOrStop()) return
 
+        // ═══════════════════════════════════════════
+        // 检测当前游戏状态 — 先查找 step4/refer/step1 确认在哪一步
+        // ═══════════════════════════════════════════
+        setPhase("🔍 检测当前游戏状态")
+
+        val detectedStep4 = findElementWithCache(
+            templateName = "step4.jpg",
+            threshold = THRESHOLD_STEP4,
+            cachedRect = null,
+            defaultSearchArea = getStep4DefaultArea()
+        )
+        val detectedRefer = findElementWithCache(
+            templateName = "step3refer.jpg",
+            threshold = THRESHOLD_REFER,
+            cachedRect = null,
+            defaultSearchArea = getReferDefaultArea()
+        )
+        val detectedStep1 = findElementWithCache(
+            templateName = "step1.jpg",
+            threshold = THRESHOLD_STEP1,
+            cachedRect = null,
+            defaultSearchArea = getStep1DefaultArea()
+        )
+
+        when {
+            detectedStep4 != null -> {
+                // step4 存在 → 点击 step4 直到 step1 出现（恢复操作，不计数）
+                log("🔍 检测到 step4 → 直接恢复步骤④")
+                cachedStep4Rect = Rect(
+                    detectedStep4.x, detectedStep4.y,
+                    detectedStep4.x + detectedStep4.width,
+                    detectedStep4.y + detectedStep4.height
+                )
+                val step4Center = Point(
+                    detectedStep4.x + detectedStep4.width / 2,
+                    detectedStep4.y + detectedStep4.height / 2
+                )
+                doClick(step4Center.x, step4Center.y)
+                // 循环点击 step4 直到 step1 出现（恢复操作，不计数）
+                var step4PhaseCount = 0
+                while (isRunning) {
+                    val newStep1 = findElementWithCache(
+                        templateName = "step1.jpg",
+                        threshold = THRESHOLD_STEP1,
+                        cachedRect = null,
+                        defaultSearchArea = getStep1DefaultArea()
+                    )
+                    if (newStep1 != null) {
+                        cachedStep1Rect = Rect(
+                            newStep1.x, newStep1.y,
+                            newStep1.x + newStep1.width,
+                            newStep1.y + newStep1.height
+                        )
+                        log("🔍 step4 → step1 恢复成功，进入主循环（不计数）")
+                        break
+                    }
+                    doClick(step4Center.x, step4Center.y)
+                    step4PhaseCount++
+                    delay(50)
+                }
+            }
+            detectedRefer != null -> {
+                // refer 存在 → 缓存后直接进入步骤③跟踪
+                log("🔍 检测到 refer → 缓存后直接进入步骤③跟踪")
+                cachedReferRect = Rect(
+                    detectedRefer.x, detectedRefer.y,
+                    detectedRefer.x + detectedRefer.width,
+                    detectedRefer.y + detectedRefer.height
+                )
+                if (detectedStep1 != null) {
+                    cachedStep1Rect = Rect(
+                        detectedStep1.x, detectedStep1.y,
+                        detectedStep1.x + detectedStep1.width,
+                        detectedStep1.y + detectedStep1.height
+                    )
+                }
+                enterTrackingDirectly = true
+                cacheLeftRightButtons()
+            }
+            detectedStep1 != null -> {
+                log("🔍 检测到 step1 → 缓存后进入主循环")
+                cachedStep1Rect = Rect(
+                    detectedStep1.x, detectedStep1.y,
+                    detectedStep1.x + detectedStep1.width,
+                    detectedStep1.y + detectedStep1.height
+                )
+            }
+            else -> {
+                log("🔍 未检测到任何已知状态，从主循环从头开始")
+            }
+        }
+
         mainLoop@ while (isRunning) {
             // 每轮开始检查屏幕方向，竖屏时等待最多10秒
             if (!waitForLandscapeOrStop()) break
 
-            log("━━━ 开始第 ${loopCount + 1} 轮 ━━━")
+            if (enterTrackingDirectly) {
+                enterTrackingDirectly = false
+                log("━━━ 开始第 ${loopCount + 1} 轮（从步骤③跟踪开始，跳过①和②）━━━")
+            } else {
+                log("━━━ 开始第 ${loopCount + 1} 轮 ━━━")
 
-            // ═══════════════════════════════════════════
-            // ① 查找并点击 step1
-            // ═══════════════════════════════════════════
-            if (!isRunning) break
-            setPhase("① 查找并点击 step1")
+                // ═══════════════════════════════════════════
+                // ① 查找并点击 step1
+                // ═══════════════════════════════════════════
+                if (!isRunning) break
+                setPhase("① 查找并点击 step1")
 
-            val step1Rect = findElementWithCache(
-                templateName = "step1.jpg",
-                threshold = THRESHOLD_STEP1,
-                cachedRect = cachedStep1Rect,
-                defaultSearchArea = getStep1DefaultArea()
-            )
+                val step1Rect = findElementWithCache(
+                    templateName = "step1.jpg",
+                    threshold = THRESHOLD_STEP1,
+                    cachedRect = cachedStep1Rect,
+                    defaultSearchArea = getStep1DefaultArea()
+                )
 
             if (step1Rect == null || !isRunning) {
                 if (!isRunning) break
@@ -498,7 +596,30 @@ class ClickScript(
 
             doClick(step1Center.x, step1Center.y)
             log("👆 点击 step1")
-            delay(LOOP_WAIT_AFTER_STEP1_CLICK_MS)
+
+            // 等待4秒，前1秒内每200ms检查refer是否已出现
+            val step1ClickTime = System.currentTimeMillis()
+            var referFoundEarly = false
+            while (System.currentTimeMillis() - step1ClickTime < 1000 && isRunning) {
+                val earlyRefer = findElementWithCache(
+                    templateName = "step3refer.jpg",
+                    threshold = THRESHOLD_REFER,
+                    cachedRect = null,
+                    defaultSearchArea = getReferDefaultArea()
+                )
+                if (earlyRefer != null) {
+                    log("✅ 前1秒内检测到 refer → 跳过步骤②，直接进入跟踪")
+                    cachedReferRect = Rect(earlyRefer.x, earlyRefer.y, earlyRefer.x + earlyRefer.width, earlyRefer.y + earlyRefer.height)
+                    referFoundEarly = true
+                    break
+                }
+                delay(200)
+            }
+            // 如果前1秒没有refer，等待剩余时间
+            if (!referFoundEarly) {
+                val remainingWait = LOOP_WAIT_AFTER_STEP1_CLICK_MS - (System.currentTimeMillis() - step1ClickTime)
+                if (remainingWait > 0) delay(remainingWait)
+            }
 
             // ═══════════════════════════════════════════
             // ② 连续点击 step1，查找 refer，同时首次记录 left/right
@@ -509,6 +630,11 @@ class ClickScript(
             var referRect: org.opencv.core.Rect?
             var step1ClickCount = 0
 
+            // 如果前1秒内已找到refer，跳过步骤②的循环
+            if (referFoundEarly && cachedReferRect != null) {
+                log("⏩ 前1秒已找到 refer，跳过步骤②循环")
+                cachedLeftPos?.let { cachedRightPos?.let { log("left/right 按钮已缓存") } }
+            } else {
             do {
                 val cycleStartMs = System.currentTimeMillis()
                 step1ClickCount++
@@ -532,14 +658,21 @@ class ClickScript(
 
                 // 固定周期延迟：使每个 click+match 周期时长一致
                 delayUntilCycleEnd(cycleStartMs, CYCLE_INTERVAL_STEP2_MS)
-            } while (referRect == null && isRunning)
+            } while (referRect == null && isRunning && !referFoundEarly)
+            }
+            // 如果 referFoundEarly 则 referRect 已在上面设置，这里直接从缓存取
+            if (referFoundEarly) {
+                // referRect 已在上面通过 earlyRefer 设置 cachedReferRect
+            }
 
             if (!isRunning) break
-            log("✅ refer 在 ${step1ClickCount} 次 step1 点击后出现")
-
-            // 缓存 refer 矩形区域
-            cachedReferRect = Rect(referRect!!.x, referRect!!.y, referRect!!.x + referRect!!.width, referRect!!.y + referRect!!.height)
-            log("📌 缓存 refer 区域: (${cachedReferRect!!.left},${cachedReferRect!!.top})-(${cachedReferRect!!.right},${cachedReferRect!!.bottom}) 尺寸=${referRect!!.width}x${referRect!!.height}")
+            if (!referFoundEarly) {
+                log("✅ refer 在 ${step1ClickCount} 次 step1 点击后出现")
+                // 缓存 refer 矩形区域
+                cachedReferRect = Rect(referRect!!.x, referRect!!.y, referRect!!.x + referRect!!.width, referRect!!.y + referRect!!.height)
+                log("📌 缓存 refer 区域: (${cachedReferRect!!.left},${cachedReferRect!!.top})-(${cachedReferRect!!.right},${cachedReferRect!!.bottom}) 尺寸=${referRect!!.width}x${referRect!!.height}")
+            }
+            }  // 结束 enterTrackingDirectly 的 else 块
 
             // ═══════════════════════════════════════════
             // ③ 根据 refer 存在与否执行两种子循环
@@ -639,6 +772,13 @@ class ClickScript(
                             // 查找 cursor（复用灰度 Mat，避免 bitmapToMat + cvtColor）
                             val cursorRect = findCursorInAreaGray(area, cycleGray)
                             if (cursorRect == null) {
+                                // cursor 未找到 → 短按 left 或 right 后重新查找
+                                log("⚠️ cursor 未找到 → 短按按钮后重新查找")
+                                if (cachedRightPos != null) {
+                                    doClick(cachedRightPos!!.x, cachedRightPos!!.y)
+                                } else if (cachedLeftPos != null) {
+                                    doClick(cachedLeftPos!!.x, cachedLeftPos!!.y)
+                                }
                                 continue
                             }
 
@@ -675,7 +815,7 @@ class ClickScript(
                                     val leftTargetX = lastLeftTargetPos?.x
                                         ?: (area.left + cursorCenterX) / 2
                                     val holdMs = abs(cursorCenterX - leftTargetX) / SPEED
-                                    val maxPulseMs = holdMs.toLong().coerceIn(3L, 35L)
+                                    val maxPulseMs = holdMs.toLong().coerceIn(5L, 40L)
                                     log("🔴 仅右侧有 target → 长按 RIGHT ${maxPulseMs}ms (分段监测) " +
                                         "(cursor=$cursorCenterX, leftTarget=$leftTargetX)")
 
@@ -735,7 +875,7 @@ class ClickScript(
                                     val rightTargetX = lastRightTargetPos?.x
                                         ?: (cursorCenterX + area.right) / 2
                                     val holdMs = abs(rightTargetX - cursorCenterX) / SPEED
-                                    val maxPulseMs = holdMs.toLong().coerceIn(5L, 35L)
+                                    val maxPulseMs = holdMs.toLong().coerceIn(8L, 40L)
                                     log("🔴 仅左侧有 target → 长按 LEFT ${maxPulseMs}ms (分段监测) " +
                                         "(cursor=$cursorCenterX, rightTarget=$rightTargetX)")
 
@@ -793,7 +933,12 @@ class ClickScript(
                                 else -> {
                                     lastLeftTargetPos = null
                                     lastRightTargetPos = null
-                                    log("两侧都无 target → 重新查找 cursor")
+                                    log("两侧都无 target → 短按按钮后重新查找 cursor")
+                                    if (cachedRightPos != null) {
+                                        doClick(cachedRightPos!!.x, cachedRightPos!!.y)
+                                    } else if (cachedLeftPos != null) {
+                                        doClick(cachedLeftPos!!.x, cachedLeftPos!!.y)
+                                    }
                                 }
                             }
 
@@ -1293,6 +1438,7 @@ class ClickScript(
         lastLeftTargetPos = null
         lastRightTargetPos = null
         isFirstLoop = true
+        enterTrackingDirectly = false
     }
 
     private fun resetState() {
