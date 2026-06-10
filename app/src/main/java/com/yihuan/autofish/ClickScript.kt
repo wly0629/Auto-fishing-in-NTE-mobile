@@ -675,7 +675,7 @@ class ClickScript(
                                     val leftTargetX = lastLeftTargetPos?.x
                                         ?: (area.left + cursorCenterX) / 2
                                     val holdMs = abs(cursorCenterX - leftTargetX) / SPEED
-                                    val maxPulseMs = holdMs.toLong().coerceIn(5L, 50L)
+                                    val maxPulseMs = holdMs.toLong().coerceIn(3L, 35L)
                                     log("🔴 仅右侧有 target → 长按 RIGHT ${maxPulseMs}ms (分段监测) " +
                                         "(cursor=$cursorCenterX, leftTarget=$leftTargetX)")
 
@@ -735,7 +735,7 @@ class ClickScript(
                                     val rightTargetX = lastRightTargetPos?.x
                                         ?: (cursorCenterX + area.right) / 2
                                     val holdMs = abs(rightTargetX - cursorCenterX) / SPEED
-                                    val maxPulseMs = holdMs.toLong().coerceIn(10L, 50L)
+                                    val maxPulseMs = holdMs.toLong().coerceIn(5L, 35L)
                                     log("🔴 仅左侧有 target → 长按 LEFT ${maxPulseMs}ms (分段监测) " +
                                         "(cursor=$cursorCenterX, rightTarget=$rightTargetX)")
 

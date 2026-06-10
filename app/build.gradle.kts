@@ -2,7 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
 }
 
-val apkVersionName = "1.0.5"
+val apkVersionName = "1.0.6"
 
 android {
     namespace = "com.yihuan.autofish"
@@ -16,7 +16,7 @@ android {
         applicationId = "com.yihuan.autofish"
         minSdk = 28
         targetSdk = 34
-        versionCode = 5
+        versionCode = 6
         versionName = apkVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -83,6 +83,9 @@ dependencies {
 
     // CardView (布局中使用了)
     implementation("androidx.cardview:cardview:1.0.0")
+
+    // SwipeRefreshLayout 下拉刷新
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 
     // ViewPager2
     implementation("androidx.viewpager2:viewpager2:1.0.0")

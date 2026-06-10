@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/swipeRefresh"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+<ScrollView
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#1A1A2E"
@@ -256,7 +262,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="获取录屏权限"
+                            android:text="永久获取录屏权限"
                             android:textColor="#E0E0E0"
                             android:textSize="17sp"
                             android:textStyle="bold" />
@@ -282,7 +288,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="用于永久获取录屏权限，而不需要每次都请求"
+                        android:text="永久授予录屏权限，每次启动无需授权"
                         android:textColor="#808090"
                         android:textSize="13sp"
                         android:layout_marginTop="2dp" />
@@ -298,6 +304,7 @@
             android:id="@+id/cardImportImage"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:layout_marginBottom="14dp"
             app:cardBackgroundColor="#16213E"
             app:cardCornerRadius="14dp"
@@ -344,7 +351,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="替换内置模板图片"
+                        android:text="替换测试所用模板图片"
                         android:textColor="#808090"
                         android:textSize="13sp"
                         android:layout_marginTop="2dp" />
@@ -368,7 +375,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="14dp">
+            android:layout_marginBottom="14dp"
+            android:visibility="gone">
 
             <!-- 绘制测试 -->
             <androidx.cardview.widget.CardView
@@ -505,16 +513,20 @@
             android:layout_height="20dp"
             android:visibility="invisible" />
 
-        <!-- 版本号 -->
+        <!-- 版本号（点击检查更新） -->
         <TextView
             android:id="@+id/tvVersion"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="v1.0.0"
+            android:text="v1.0.5"
             android:textColor="#505060"
             android:textSize="12sp"
-            android:layout_marginBottom="16dp" />
+            android:layout_marginBottom="16dp"
+            android:clickable="true"
+            android:focusable="true" />
 
     </LinearLayout>
 
 </ScrollView>
+
+</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>

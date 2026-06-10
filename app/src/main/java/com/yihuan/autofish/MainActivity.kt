@@ -20,6 +20,7 @@ import androidx.appcompat.widget.SwitchCompat
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -114,6 +115,11 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var switchScreenRecord: SwitchCompat
     private lateinit var tvAdbHint: android.widget.TextView
+    private lateinit var swipeRefresh: SwipeRefreshLayout
+
+    // 开发者模式：连续点击版本号7次进入
+    private var devModeTapCount = 0
+    private var devModeEnabled = false
 
     // 图片选择启动器（分两步：先选 step1，再选 step3）
     private var pendingStep = 1 // 1=选step1图, 2=选step3图
@@ -135,7 +141,19 @@ class MainActivity : AppCompatActivity() {
         setupCards()
 
         // 显示版本号（只显示版本名）
-        findViewById<android.widget.TextView>(R.id.tvVersion).text = "v${BuildConfig.VERSION_NAME}"
+        val tvVersion = findViewById<android.widget.TextView>(R.id.tvVersion)
+        tvVersion.text = "v${BuildConfig.VERSION_NAME}"
+
+        // 版本号点击 → 检查更新
+        tvVersion.setOnClickListener {
+            checkUpdateWithToast()
+        }
+
+        // 版本号长按 → 切换开发者模式
+        tvVersion.setOnLongClickListener {
+            toggleDevTools()
+            true
+        }
 
         // 设置悬浮窗录屏权限回调 — 点击运行按钮时通过此回调弹出录屏授权界面
         FloatingOverlayService.onRequestScreenCapture = {
@@ -144,6 +162,12 @@ class MainActivity : AppCompatActivity() {
             screenCapturePermissionLauncher.launch(mediaProjectionManager.createScreenCaptureIntent())
         }
 
+        // 下拉刷新 — 刷新权限获取状态
+        swipeRefresh = findViewById(R.id.swipeRefresh)
+        swipeRefresh.setColorSchemeResources(android.R.color.holo_blue_light, android.R.color.holo_green_light)
+        swipeRefresh.setOnRefreshListener {
+            refreshPermissionStatus()
+        }
 
         // 延迟检查更新（不阻塞界面加载）
         myHandler.postDelayed({ checkUpdate() }, 2000)
@@ -404,11 +428,65 @@ class MainActivity : AppCompatActivity() {
             suppressSwitchCallback = false
         }
         tvAdbHint.visibility = View.GONE
+
+        // 如果有悬浮窗权限且服务未启动，自动开启
+        if (Settings.canDrawOverlays(this) && !floatingServiceStarted) {
+            myHandler.postDelayed({
+                if (!floatingServiceStarted) {
+                    floatingServiceStarted = true
+                    startFloatingServiceInternal()
+                }
+            }, 500)
+        }
     }
 
     /**
-     * 检查远程更新（启动后延迟2秒调用）
-     * 从远程 update.json 获取版本信息，展示简洁的白色更新弹窗
+     * 检查更新（用户主动点击版本号时调用，已最新则 Toast）
+     */
+    private fun checkUpdateWithToast() {
+        val updateUrl = "https://raw.githubusercontent.com/wly0629/yihuan-autofish-android/main/update.json"
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val jsonStr = fetchUrl(updateUrl)
+                val obj = JSONObject(jsonStr)
+                val remoteVersionCode = obj.optInt("versionCode", 0)
+                val remoteVersionName = obj.optString("versionName", "")
+                val apkUrl = obj.optString("apkUrl", "")
+                val updateLog = obj.optString("updateLog", "暂无更新说明")
+
+                if (remoteVersionCode > BuildConfig.VERSION_CODE && apkUrl.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle("发现新版本 v$remoteVersionName")
+                            .setMessage(updateLog)
+                            .setPositiveButton("立即更新") { _, _ ->
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(apkUrl))
+                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    startActivity(intent)
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "打开下载链接失败", e)
+                                }
+                            }
+                            .setNegativeButton("稍后再说", null)
+                            .show()
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "✅ 当前已是最新版 v${BuildConfig.VERSION_NAME}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "❌ 检查更新失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+                Log.e(TAG, "检查更新失败", e)
+            }
+        }
+    }
+
+    /**
+     * 检查远程更新（启动后延迟2秒自动调用，已最新时不提示）
      */
     private fun checkUpdate() {
         val updateUrl = "https://raw.githubusercontent.com/wly0629/yihuan-autofish-android/main/update.json"
@@ -462,6 +540,53 @@ class MainActivity : AppCompatActivity() {
 
     private fun log(msg: String) {
         Log.d(TAG, msg)
+    }
+
+    /**
+     * 切换开发者模式：显示/隐藏测试控件
+     */
+    private fun toggleDevTools() {
+        devModeTapCount++
+        if (devModeTapCount >= 7) {
+            devModeEnabled = !devModeEnabled
+            devModeTapCount = 0
+            val visibility = if (devModeEnabled) View.VISIBLE else View.GONE
+            // 导入图片控件
+            findViewById<View>(R.id.cardImportImage)?.visibility = visibility
+            // 绘制测试 + 识别点击的父容器（无 id，通过子控件寻找 parent）
+            findViewById<View>(R.id.cardTest)?.parent?.let { parent ->
+                if (parent is View) {
+                    parent.visibility = visibility
+                }
+            }
+            val msg = if (devModeEnabled) "🔧 开发者模式已开启" else "🔒 开发者模式已关闭"
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 下拉刷新：重新检查所有权限状态
+     */
+    private fun refreshPermissionStatus() {
+        swipeRefresh.isRefreshing = true
+        // 更新无障碍和悬浮窗权限指示灯
+        updateIndicator(R.id.permIndicator1, isAccessibilityServiceEnabled())
+        updateIndicator(R.id.permIndicator2,
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this))
+
+        // 更新录屏权限状态
+        val prefs = getSharedPreferences("autoclicker", MODE_PRIVATE)
+        val actualPermission = checkScreenCapturePermission()
+        if (actualPermission) {
+            prefs.edit().putBoolean("screen_capture_authorized", true).apply()
+            suppressSwitchCallback = true
+            switchScreenRecord.isChecked = true
+            suppressSwitchCallback = false
+        }
+        tvAdbHint.visibility = View.GONE
+
+        Toast.makeText(this, "✅ 权限状态已刷新", Toast.LENGTH_SHORT).show()
+        swipeRefresh.isRefreshing = false
     }
 
     /**

@@ -1,8 +1,8 @@
 {
-  "versionCode": 5,
-  "versionName": "1.0.5",
-  "apkUrl": "https://github.com/wly0629/yihuan-autofish-android/releases/download/v1.0.5/yihuan-autofish_1.0.5.apk",
+  "versionCode": 6,
+  "versionName": "1.0.6",
+  "apkUrl": "https://github.com/wly0629/yihuan-autofish-android/releases/download/v1.0.6/yihuan-autofish_1.0.6.apk",
   "size": 25424705,
-  "updateContent": "v1.0.5 更新内容：\n1. 光标追踪速度优化：SPEED 0.34→0.36，匹配实际游戏光标速度；最大脉冲时长 500ms→50ms，更精细的分段追踪\n2. 移除速度追踪和自适应脉冲逻辑，恢复固定脉冲方案\n3. 优化光标移动参数（BASE_PULSE_MS 8ms，长按时间范围 5~50ms）\n4. 修复监控循环帧检测失效问题（delay 20ms→5ms）\n5. 删除点击位置 Toast 提示，减少性能干扰",
-  "updateLog": "v1.0.5 更新内容：\n\n1. 光标追踪速度优化\n   - SPEED 0.34→0.36，匹配实际光标速度（786px/66帧@30fps≈0.36px/ms）\n   - 最大脉冲时长 500ms→50ms，更精细的分段追踪，防止超调\n   - 新增 BASE_PULSE_MS=8ms 基础脉冲常量\n\n2. 移除速度追踪和自适应脉冲逻辑，恢复固定脉冲方案\n\n3. 优化光标移动参数\n   - 长按时间范围: coerceIn(150L, 500L)→coerceIn(5L, 50L)右/coerceIn(10L, 50L)左\n   - 引入固定 BASE_PULSE_MS=8ms 脉冲\n\n4. 修复监控循环帧检测失效问题\n   - doLongClick 后 delay(20)→delay(5)，加快帧捕获响应\n\n5. 删除点击位置 Toast 提示\n   - 移除 \"点击: (x,y)\" 和 \"长按: (x,y) xxxms\" 的 Toast\n   - 清理不再使用的 Handler / Looper / Toast 导入"
+  "updateContent": "v1.0.6 更新内容：\n1. Step3 光标追踪优化：降低长按脉冲上下限（右按3~35ms/左按5~35ms），减少overshoot\n2. 开发者模式：长按版本号7次切换，隐藏测试控件\n3. 自动开启悬浮窗：检测到权限后自动启动浮窗服务\n4. 版本号点击检查更新：已最新则Toast提示\n5. 下拉刷新：SwipeRefreshLayout刷新权限状态\n6. 文本优化：控件名称与说明文字修正",
+  "updateLog": "v1.0.6 更新内容：\n\n1. Step3 光标追踪优化\n   - 右按长按脉冲：coerceIn(5L, 50L)→coerceIn(3L, 35L)\n   - 左按长按脉冲：coerceIn(10L, 50L)→coerceIn(5L, 35L)\n   - 最大移动量 18px→12.6px，减少 overshoot\n\n2. 开发者模式\n   - 长按版本号 v1.0.6 约7次切换隐藏的测试控件（导入图片/绘制测试/识别点击）\n   - 普通用户界面简洁，仅显示功能控件\n\n3. 自动开启悬浮窗\n   - onResume 时检测悬浮窗权限，已授权且服务未启动则自动启动\n\n4. 版本号点击检查更新\n   - 点击版本号检查远程 update.json\n   - 已是最新版则 Toast 提示\n   - 有新版本则弹出更新对话框\n\n5. 下拉刷新\n   - 主页增加 SwipeRefreshLayout，下拉刷新无障碍/悬浮窗/录屏权限状态\n\n6. 文本优化\n   - \"获取录屏权限\"→\"永久获取录屏权限\"\n   - \"用于永久获取录屏权限...\"→\"永久授予录屏权限，每次启动无需授权\"\n   - \"替换内置模板图片\"→\"替换测试所用模板图片\""
 }
